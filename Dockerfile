@@ -1,4 +1,6 @@
-FROM python:3-slim-buster
+FROM python:3-slim-bullseye
+
+RUN apt-get update && apt-get install -y htop iotop iftop net-tools sysstat procps coreutils grep sed gawk curl wget && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
