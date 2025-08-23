@@ -3,6 +3,7 @@ import typer
 from rich import print
 from typing import Annotated
 
+
 app = typer.Typer(help = 'Surge - A DevOps CLI Tool For System Monitoring and Production Reliability')
 
 
@@ -16,8 +17,7 @@ def run_cmd(cmd: str) -> str:
 
 def get_load() -> tuple[float] | int:
     """
-    Returns (averages, cores).
-    provider: 'linux' or 'psutil' (if psutil is not available, falls back to linux)
+    Utilizes Linux uptime for system load metrics and to determine core utilization
     """
 
     uptime = run_cmd("uptime | awk -F'average:' '{print $2}'")
@@ -27,9 +27,41 @@ def get_load() -> tuple[float] | int:
     return averages, cores
 
 
-def get_cpu() -> tuple:
-    top = run_cmd('top -bn1')
-    return top
+def get_cpu() -> tuple[float]:
+    """
+    Uses top to find CPU utilization grouped by user, system, and idle percents.
+    """
+    top = run_cmd('top -bn1 | grep "Cpu(s)"').split(',')
+    user = top[0].split()[-2]
+    system = top[1].split()[0]
+    idle = top[3].split()[0]
+
+    return user, system, idle
+
+
+def get_memory() -> tuple[float]:
+    """
+    Returns remaining memory by group using free.
+    """
+    free = run_cmd('free -m | grep Mem').split()
+    total, used, free_mem = free[1], free[2], free[3]
+
+    return total, used, free_mem
+
+
+def get_disk() -> tuple[float]:
+    """
+    Returns disk usage with df.
+    """
+    df = run_cmd('df -h / | tail -1').split()
+    size, used, available, percent = df[1], df[2], df[3], df[4]
+
+    return size, used, available, percent
+
+
+def get_io() -> tuple[float]:
+    # TODO: implement with iostat
+    pass
 
 
 @app.command()
@@ -38,6 +70,7 @@ def monitor(
     cpu: Annotated[bool, typer.Option('-c', '--cpu', help = 'Show CPU usage')] = True,
     ram: Annotated[bool, typer.Option('-r', '--ram', help = 'Show RAM usage')] = True,
     disk: Annotated[bool, typer.Option('-d', '--disk', help = 'Show Disk usage')] = True,
+    io: Annotated[bool, typer.Option('-o', '--io', help = 'Show Disk I/O statistics')] = True,
     interval: Annotated[int, typer.Option('-i', '--interval', help = 'Polling interval in seconds')] = 5,
     verbose: Annotated[bool, typer.Option('-v', '--verbose', help = 'Show detailed system metrics')] = False
 ):
@@ -52,13 +85,11 @@ def monitor(
     #   if verbose:
     #       ...
 
-    # Load -> Captured by Linux subprocess of 'uptime'
-    if load:
-        # Psutil substitute: averages = psutil.getloadavg(), cores = psutil.cpu_count()
 
+    if load:
         averages, cores = get_load()
 
-        print('System Load Averages')
+        print('\n[bold]System Load Averages[/bold]')
         print('---------------------')
 
         if not verbose:
@@ -71,19 +102,22 @@ def monitor(
             print(f'Load avg (15m): {averages[2]:.2f} ({averages[2] / cores:.3f} per CPU)')
     
     if cpu:
-        cpu_util = get_cpu()
-
-        print('\nSystem CPU Utilization')
-        print('----------------------')
+        user, system, idle = get_cpu()
+        print('\n[bold]CPU Utilization[/bold]')
+        print('---------------------')
+        print(f'User: {user}% | System: {system}% | Idle: {idle}%')
     
-        if not verbose:
-            print(f'CPU: {cpu_util}')
-
-
-    if verbose:
-        print('Placeholder for verbose system metrics.')
-    else:
-        print('Placeholder for default system metrics')
+    if ram:
+        total, used, free = get_memory()
+        print('\n[bold]Memory Usage (MB)[/bold]')
+        print('---------------------')
+        print(f'Total: {total} | Used: {used} | Free: {free}')
+    
+    if disk:
+        size, used, available, percent = get_disk()
+        print('\n[bold]Disk Usage[/bold]')
+        print('---------------------')
+        print(f'Size: {size} | Used: {used} | Available: {available} | Usage: {percent}')
 
 
 @app.command()
