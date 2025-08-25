@@ -2,7 +2,7 @@ import subprocess
 import typer
 from rich import print
 from typing import Annotated
-
+import os
 
 app = typer.Typer(help = 'Surge - A DevOps CLI Tool For System Monitoring and Production Reliability')
 
@@ -130,6 +130,37 @@ def network(
     """
     print(f'Testing network connection to {url} with {requests} requests.')
     # TODO: Add http requests or use curl through subprocess
+
+
+@app.command()
+def ai(
+    format: Annotated[str, typer.Option("--format", '-f',help='Data format: raw/structured/hybrid')] = "hybrid",
+    verbosity: Annotated[str, typer.Option('--verbosity', '-v', help="Output detail: concise/normal/hybrid")] = 'normal',
+    auto_fix: Annotated[bool, typer.Option("--auto-fix", help="Auto-execute safe fixes")] = False,
+):
+    """
+    Using Gemini 2.5 Flash for now for simple AI suggestions and reading through machine metrics
+    giving suggest fixes upon user confirmations
+    """
+
+    if not os.getenv('GEMINI_API_KEY'):
+        print('[red]Error: GEMINI_API_KEY is empty[/red]')
+        print('Set it with: export GEMINI_API_KEY="your api key"')
+        return
+
+    try:
+        from ai.ai_monitor import run_ai_monitor
+        
+        run_ai_monitor(
+            data_format=format,
+            verbosity=verbosity,
+            auto_fix=auto_fix
+        )
+    except ImportError:
+        print('[red]AI packages not installed[/red]')
+        print('Run: pip install langchain langchain-google-genai rich')
+    except Exception as e:
+        print(f'[red]Error: {str(e)}[/red]')
 
 if __name__ == "__main__":
     app()
