@@ -41,6 +41,7 @@ requests
 requests-toolbelt
 rich
 rsa
+ruff
 shellingham
 sniffio
 SQLAlchemy
