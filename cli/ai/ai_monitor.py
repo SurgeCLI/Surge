@@ -15,7 +15,6 @@ from langchain.memory import ConversationBufferWindowMemory
 from langchain.schema import SystemMessage, HumanMessage
 from rich.console import Console
 from rich.prompt import Confirm
-from rich.table import Table
 from rich.panel import Panel
 
 load_dotenv()
@@ -96,7 +95,7 @@ class MetricCollector:
             )
 
             return result.stdout.strip()
-        except Exception as e:
+        except Exception:
             # When testing I'll see what exactly the error is then isolate it with correct error exceptons
             pass
 
@@ -206,8 +205,8 @@ class CommandExecutor:
 
             return result.returncode == 0, result.stdout
 
-        except Exception as e:
-            return False, str("Error is: ", e)
+        except Exception as err:
+            return False, str("Error is: ", err)
 
 
 
@@ -287,7 +286,7 @@ class AIMonitor:
 
         else:
             structured = {
-                "load_per_core": [l/snapshot.cpu_cores for l in snapshot.load_avg],
+                "load_per_core": [line/snapshot.cpu_cores for line in snapshot.load_avg],
                 "memory_usage_percent": (snapshot.memory_db["used"] / snapshot.memory_db["total"]) * 100,
                 "disk_usage_percent": snapshot.disk_usage_percent
             }
@@ -462,8 +461,8 @@ def run_ai_monitor(
         )
         monitor.monitor_loop()
 
-    except Exception as e:
-        Console().print(f"[red]Error: {str(e)}[/red]")
+    except Exception as err:
+        Console().print(f"[red]Error: {str(err)}[/red]")
         Console().print("[yellow]Check the API key and try again[/yellow]")
         
     
