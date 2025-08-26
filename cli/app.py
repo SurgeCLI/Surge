@@ -6,6 +6,19 @@ from typing import Annotated
 
 app = typer.Typer(help = 'Surge - A DevOps CLI Tool For System Monitoring and Production Reliability')
 
+FALSY_TOKENS = {"false", "0", "no", "n", "off", "none", "null", ""}
+
+
+def is_falsy_value(value) -> bool:
+    if value is None:
+        return True
+    if isinstance(value, (str, bytes)):
+        token = value.decode() if isinstance(value, (bytes, bytearray)) else value
+        return token.strip().lower() in FALSY_TOKENS
+    if isinstance(value, (int, float)):
+        return value == 0
+    return False
+
 
 def run_cmd(cmd: str) -> str:
     """
@@ -22,7 +35,7 @@ def get_load() -> tuple[float] | int:
 
     uptime = run_cmd("uptime | awk -F'average:' '{print $2}'")
     averages = [float(x.replace(',', '')) for x in uptime.split()]
-    cores = run_cmd('nproc')
+    cores = float(run_cmd('nproc'))
 
     return averages, cores
 
@@ -85,6 +98,8 @@ def monitor(
     #   if verbose:
     #       ...
 
+    if is_falsy_value(interval) or int(interval) <= 0:
+        raise typer.BadParameter('Interval must be a positive integer')
 
     if load:
         averages, cores = get_load()
@@ -128,6 +143,12 @@ def network(
     """
     Run basic network/API tests with a number of requests.
     """
+
+    if is_falsy_value(url):
+        raise typer.BadParameter('URL must be provided')
+    if is_falsy_value(requests) or int(requests) <= 0:
+        raise typer.BadParameter('Count must be a positive integer')
+
     print(f'Testing network connection to {url} with {requests} requests.')
     # TODO: Add http requests or use curl through subprocess
 
