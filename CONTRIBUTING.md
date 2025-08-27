@@ -30,6 +30,19 @@ chore: short-description
 3. Push to the branch (`git push origin type/[issue#]-short-description`)
 4. Open a pull request on GitHub
 
+### Pull Requests
+Add a short summary, list of additions/changes/etc, and related issues/PRs. Here's an example format:
+
+## Summary
+Please provide a brief description of the pull request, highlighting your changes and additions.
+
+- Added: (List main features and information)
+- Fixed: (List any fixes or resolved bugs)
+
+## Related Issues
+Link related issues or pull requests (e.g., Fixes #1, Closes #2).
+- Fixes/Closes: #_
+
 ##
 
 **NOTE: When contributing, please be sure to lint and format your Python code to follow [PEP8 standards](https://peps.python.org/pep-0008/) to the best of your ability. Use the following commands in your terminal to spot linting errors and automatically format to adhere to the styling standards:**
