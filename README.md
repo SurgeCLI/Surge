@@ -42,7 +42,7 @@ docker run --rm surge:latest [command] [options]
 ```
 
 ### Set Up a Virtual Environment
-If you prefer using a virtual environment to run the necessary dependencies, type in the following in your terminal:
+If you prefer using a virtual environment to run the necessary dependencies, enter the following in your terminal with Python 3.12 or above:
 
 ```
 python -m venv venv
@@ -56,22 +56,10 @@ pip install -r cli/requirements.txt
 Be sure to use Linux with the installed packages found in the Dockerfile to avoid errors running subprocess commands locally.
 
 ## Examples and Documentation
-More detailed documentation, demos, and visuals will be released with the MVP.
+More detailed documentation, demos, and visuals will be released with the MVP (coming soon).
 
 ## Contributing
-This repository is open for collaboration to build Surge as a tool for developers and site reliability engineers. Follow the code of conduct, have fun, and feel free to submit pull requests!
-
-1. Create your Feature Branch (`git checkout -b feature/feature-name`)
-2. Commit your Changes (`git commit -m "Added a great new feature!"`)
-3. Push to the Branch (`git push origin feature/feature-name`)
-4. Open a Pull Request on GitHub
-
-**NOTE: When contributing, please be sure to lint and format your Python code to follow [PEP8 standards](https://peps.python.org/pep-0008/) to the best of your ability. Use the following commands in your terminal to spot linting errors and automatically format to adhere to the styling standards:**
-
-```
-ruff check
-ruff format
-```
+Check out [CONTRIBUTING.md](./CONTRIBUTING.md) for guidelines.
 
 ## License
 Surge is [MIT licensed](./LICENSE).
