@@ -120,76 +120,64 @@ def monitor(
 
 @app.command("network")
 def network(
-    url: Annotated[str, typer.Option("-u", "--url", help="HTTP URL to test (curl)")],
-    host: Annotated[str, typer.Option("-h", "--host", help="Host/IP for ping/trace")],
-    domain: Annotated[str, typer.Option("-d", "--domain", help="Domain for DNS lookup")],
-    requests: Annotated[int, typer.Option("-n", "--count", help="Ping echo requests")] = 5,
+    url: Annotated[str | None, typer.Option("-u", "--url", help="HTTP URL to test (curl)", show_default=False)] = None,
+    host: Annotated[str | None, typer.Option("-h", "--host", help="Host/IP for ping and traceroute", show_default=False)] = None,
+    domain: Annotated[str | None, typer.Option("-d", "--domain", help="Domain for DNS lookup", show_default=False)] = None,
+    requests: Annotated[int, typer.Option("-n", "--count", help="Number of ICMP echo requests")] = 5,
     dtype: Annotated[str, typer.Option("-t", "--type", help="DNS record type (A, AAAA, MX, TXT, etc.)")] = "A",
-    listening: Annotated[bool, typer.Option("-l", "--listening", help="Show only listening sockets")] = False,
-    bw_server: Annotated[str | None, typer.Option("-s", "--bw-server", help="iperf3 server (optional)")] = None,
-    bw_time: Annotated[int, typer.Option("-T", "--bw-time", help="iperf3 duration (sec)")] = 10,
-    quick: Annotated[bool, typer.Option("-q", "--quick", help="Skip traceroute and sockets")] = False,
+    sockets: Annotated[bool, typer.Option("--sockets", help="Show socket information (ss)")] = False,
+    bw_server: Annotated[str | None, typer.Option("--bw-server", help="iperf3 server (optional)")] = None,
+    bw_time: Annotated[int, typer.Option("--bw-time", help="iperf3 duration in seconds")] = 10,
+    no_trace: Annotated[bool, typer.Option("--no-trace", help="Skip traceroute/mtr when --host is set")] = False,
 ):
     """
-    One-stop network check: ping, traceroute, HTTP (curl), DNS, sockets, and optional iperf3.
+    Flexible network diagnostics: run only what you request.
+    Provide one or more of: --host, --url, --domain, --sockets, --bw-server.
     """
 
     def header(title: str):
         print(f"\n[bold]{title}[/bold]")
-        print("—" * len(title))
+        print("-" * len(title))
 
-    # ---- ping ----
-    header("Ping")
-    # Linux-style -c; if your environment is Windows-not-in-Docker, switch to 'ping -n'
-    ping_out = run_cmd(f"ping -c {requests} {host}")
-    if not ping_out:
-        ping_out = "[warn] ping not available or no output"
-    print(ping_out)
+    # guard: require at least one section
+    if not any([host, url, domain, sockets, bw_server]):
+        print("[warn] Nothing to do. Provide at least one of: --host, --url, --domain, --sockets, --bw-server")
+        raise typer.Exit(code=1)
 
-    # ---- traceroute / mtr (skip if quick) ----
-    if not quick:
-        header("Traceroute")
-        trace_out = run_cmd(f"traceroute {host}")
-        if not trace_out:
-            # fallback to mtr if available
-            trace_out = run_cmd(f"mtr -r {host}")
-        if not trace_out:
-            trace_out = "[warn] traceroute/mtr not available or no output"
-        print(trace_out)
+    # ---- ping / traceroute ----
+    if host:
+        header("Ping")
+        ping_out = run_cmd(f"ping -c {requests} {host}")
+        print(ping_out or "[warn] ping not available or produced no output")
+
+        if not no_trace:
+            header("Traceroute")
+            trace_out = run_cmd(f"traceroute {host}") or run_cmd(f"mtr -r {host}")
+            print(trace_out or "[warn] traceroute/mtr not available or produced no output")
 
     # ---- http (curl) ----
-    header("HTTP (curl)")
-    http_out = run_cmd(f"curl -s -i {url}")
-    if not http_out:
-        http_out = "[warn] curl not available or no output"
-    print(http_out)
+    if url:
+        header("HTTP (curl)")
+        http_out = run_cmd(f"curl -s -i {url}")
+        print(http_out or "[warn] curl not available or produced no output")
 
-    # ---- dns (dig/nslookup) ----
-    header("DNS")
-    dns_out = run_cmd(f"dig +short {domain} {dtype}")
-    if not dns_out:
-        dns_out = run_cmd(f"nslookup -type={dtype} {domain}")
-    if not dns_out:
-        dns_out = "[warn] dig/nslookup not available or no output"
-    print(dns_out)
+    # ---- dns ----
+    if domain:
+        header("DNS")
+        dns_out = run_cmd(f"dig +short {domain} {dtype}") or run_cmd(f"nslookup -type={dtype} {domain}")
+        print(dns_out or "[warn] dig/nslookup not available or produced no output")
 
-    # ---- sockets (ss) (skip if quick) ----
-    if not quick:
+    # ---- sockets (ss) ----
+    if sockets:
         header("Sockets (ss)")
-        ss_cmd = "ss -tulwn" if listening else "ss -tupan"
-        ss_out = run_cmd(ss_cmd)
-        if not ss_out:
-            ss_out = "[warn] ss not available or no output"
-        print(ss_out)
+        ss_out = run_cmd("ss -tulwn")
+        print(ss_out or "[warn] ss not available or produced no output")
 
     # ---- bandwidth (iperf3) ----
     if bw_server:
         header("Bandwidth (iperf3)")
         iperf_out = run_cmd(f"iperf3 -c {bw_server} -t {bw_time}")
-        if not iperf_out:
-            iperf_out = "[warn] iperf3 not available or no output"
-        print(iperf_out)
-
-
+        print(iperf_out or "[warn] iperf3 not available or produced no output")
+        
 if __name__ == "__main__":
     app()
