@@ -176,7 +176,8 @@ def network(
             if "packets transmitted" in ln and "packet loss" in ln:
                 parts = ln.replace(",", "").split()
                 try:
-                    sent = int(parts[0]); loss = parts[6]
+                    sent = int(parts[0])
+                    loss = parts[6]
                 except Exception:
                     pass
             if "rtt min/avg/max" in ln or "round-trip min/avg/max" in ln:
@@ -185,13 +186,18 @@ def network(
                 except Exception:
                     pass
         bits = []
-        if sent is not None: bits.append(f"sent={sent}")
-        if loss is not None: bits.append(f"loss={loss}")
-        if avg is not None:  bits.append(f"avg_rtt_ms={avg}")
+
+        if sent is not None:
+            bits.append(f"sent={sent}")
+        if loss is not None:
+            bits.append(f"loss={loss}")
+        if avg is not None:
+            bits.append(f"avg_rtt_ms={avg}")
+        
         return " | ".join(bits) if bits else (out.strip()[:200] if out else "")
 
     def summarize_trace(out: str, max_lines: int = 12) -> str:
-        lines = [l for l in out.splitlines() if l.strip()]
+        lines = [line for line in out.splitlines() if line.strip()]
         if len(lines) <= max_lines:
             return out
         return "\n".join(lines[:6] + ["..."] + lines[-6:])
@@ -242,12 +248,6 @@ def network(
         header("Sockets (ss)")
         ss_out = run_cmd("ss -tulwn")
         print(ss_out or "[warn] ss not available or produced no output")
-
-    # ---- bandwidth (iperf3) ----
-    if bw_server:
-        header("Bandwidth (iperf3)")
-        iperf_out = run_cmd(f"iperf3 -c {bw_server} -t {bw_time}")
-        print(iperf_out or "[warn] iperf3 not available or produced no output")
 
 if __name__ == "__main__":
     app()

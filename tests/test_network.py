@@ -1,5 +1,4 @@
 import click
-import types
 from typer.testing import CliRunner
 
 import cli.app as appmod
