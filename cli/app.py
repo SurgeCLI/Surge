@@ -1,3 +1,4 @@
+import os
 import subprocess
 import typer
 from rich import print
@@ -7,6 +8,7 @@ from typing import Annotated
 app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
 )
+
 
 def run_cmd(cmd: str) -> str:
     """
@@ -85,6 +87,9 @@ def monitor(
         bool, typer.Option("-v", "--verbose", help="Show detailed system metrics")
     ] = False,
 ):
+    if interval <= 0:
+        raise typer.BadParameter("Interval must be a positive integer.")
+
     """
     Summary of all system metrics, including utilization of CPU, Memory, Network, and I/O.
     """
@@ -95,9 +100,6 @@ def monitor(
     #   ...
     #   if verbose:
     #       ...
-
-    if int(interval) <= 0:
-        raise typer.BadParameter("Interval must be a positive integer")
 
     if load:
         averages, cores = get_load()
@@ -140,15 +142,38 @@ def monitor(
             f"Size: {size} | Used: {used} | Available: {available} | Usage: {percent}"
         )
 
+
 @app.command("network")
 def network(
-    url: Annotated[str | None, typer.Option("-u", "--url", help="HTTP URL to test (curl)", show_default=False)] = None,
-    host: Annotated[str | None, typer.Option("-h", "--host", help="Host/IP for ping and traceroute", show_default=False)] = None,
-    domain: Annotated[str | None, typer.Option("-d", "--domain", help="Domain for DNS lookup", show_default=False)] = None,
-    requests: Annotated[int, typer.Option("-n", "--count", help="Number of ICMP echo requests")] = 5,
-    dtype: Annotated[str, typer.Option("-t", "--type", help="DNS record type (A, AAAA, MX, TXT, etc.)")] = "A",
-    sockets: Annotated[bool, typer.Option("--sockets", help="Show socket information (ss)")] = False,
-    no_trace: Annotated[bool, typer.Option("--no-trace", help="Skip traceroute/mtr when --host is set")] = False,
+    url: Annotated[
+        str | None,
+        typer.Option("-u", "--url", help="HTTP URL to test (curl)", show_default=False),
+    ] = None,
+    host: Annotated[
+        str | None,
+        typer.Option(
+            "-h", "--host", help="Host/IP for ping and traceroute", show_default=False
+        ),
+    ] = None,
+    domain: Annotated[
+        str | None,
+        typer.Option(
+            "-d", "--domain", help="Domain for DNS lookup", show_default=False
+        ),
+    ] = None,
+    requests: Annotated[
+        int, typer.Option("-n", "--count", help="Number of ICMP echo requests")
+    ] = 5,
+    dtype: Annotated[
+        str,
+        typer.Option("-t", "--type", help="DNS record type (A, AAAA, MX, TXT, etc.)"),
+    ] = "A",
+    sockets: Annotated[
+        bool, typer.Option("--sockets", help="Show socket information (ss)")
+    ] = False,
+    no_trace: Annotated[
+        bool, typer.Option("--no-trace", help="Skip traceroute/mtr when --host is set")
+    ] = False,
 ):
     """
     Flexible network diagnostics: run only what you request.
@@ -193,7 +218,7 @@ def network(
             bits.append(f"loss={loss}")
         if avg is not None:
             bits.append(f"avg_rtt_ms={avg}")
-        
+
         return " | ".join(bits) if bits else (out.strip()[:200] if out else "")
 
     def summarize_trace(out: str, max_lines: int = 12) -> str:
@@ -215,19 +240,29 @@ def network(
 
     # --- then require at least one section ---
     if not any([host, url, domain, sockets]):
-        warn("Nothing to do. Provide at least one of: --host, --url, --domain, --sockets")
+        warn(
+            "Nothing to do. Provide at least one of: --host, --url, --domain, --sockets"
+        )
         raise typer.Exit(code=1)
 
     # ---- ping / traceroute (or mtr -r fallback) ----
     if host:
         header("Ping")
         ping_out = run_cmd(f"ping -c {requests} {host}")
-        print(summarize_ping(ping_out) if ping_out else "[warn] ping not available or produced no output")
+        print(
+            summarize_ping(ping_out)
+            if ping_out
+            else "[warn] ping not available or produced no output"
+        )
 
         if not no_trace:
             header("Traceroute")
             trace_out = run_cmd(f"traceroute {host}") or run_cmd(f"mtr -r {host}")
-            print(summarize_trace(trace_out) if trace_out else "[warn] traceroute/mtr not available or produced no output")
+            print(
+                summarize_trace(trace_out)
+                if trace_out
+                else "[warn] traceroute/mtr not available or produced no output"
+            )
 
     # ---- http (curl) ----
     if url:
@@ -235,19 +270,64 @@ def network(
         u = normalize_url(url)
         print(curl_brief(u))
         headers = run_cmd(f"curl -s -I {u}")
-        print(headers.strip() if headers else "[warn] curl not available or produced no output")
+        print(
+            headers.strip()
+            if headers
+            else "[warn] curl not available or produced no output"
+        )
 
     # ---- dns ----
     if domain:
         header("DNS")
-        dns_out = run_cmd(f"dig +short {domain} {dtype}") or run_cmd(f"nslookup -type={dtype} {domain}")
-        print(dns_out.strip() if dns_out else "[warn] dig/nslookup not available or produced no output")
+        dns_out = run_cmd(f"dig +short {domain} {dtype}") or run_cmd(
+            f"nslookup -type={dtype} {domain}"
+        )
+        print(
+            dns_out.strip()
+            if dns_out
+            else "[warn] dig/nslookup not available or produced no output"
+        )
 
     # ---- sockets (ss) ----
     if sockets:
         header("Sockets (ss)")
         ss_out = run_cmd("ss -tulwn")
         print(ss_out or "[warn] ss not available or produced no output")
+
+
+@app.command()
+def ai(
+    format: Annotated[
+        str, typer.Option("--format", "-f", help="Data format: raw/structured/hybrid")
+    ] = "hybrid",
+    verbosity: Annotated[
+        str,
+        typer.Option("--verbosity", "-v", help="Output detail: concise/normal/hybrid"),
+    ] = "normal",
+    auto_fix: Annotated[
+        bool, typer.Option("--auto-fix", help="Auto-execute safe fixes")
+    ] = False,
+):
+    """
+    Using Gemini 2.5 Flash for now for simple AI suggestions and reading through machine metrics
+    giving suggest fixes upon user confirmations
+    """
+
+    if not os.getenv("GEMINI_API_KEY"):
+        print("[red]Error: GEMINI_API_KEY is empty[/red]")
+        print('Set it with: export GEMINI_API_KEY="your api key"')
+        return
+
+    try:
+        from ai.ai_monitor import run_ai_monitor
+
+        run_ai_monitor(data_format=format, verbosity=verbosity, auto_fix=auto_fix)
+    except ImportError:
+        print("[red]AI packages not installed[/red]")
+        print("Run: pip install langchain langchain-google-genai rich")
+    except Exception as err:
+        print(f"[red]Error: {str(err)}[/red]")
+
 
 if __name__ == "__main__":
     app()
