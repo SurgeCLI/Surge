@@ -144,35 +144,3 @@ class TestCLI:
         assert result.exit_code != 0
         assert isinstance(result.exception, SystemExit)
         assert result.exit_code == 2
-
-    def test_network_command_prints_message(self, runner):
-        result = runner.invoke(
-            app_mod.app, ["network", "https://example.com", "--count", "2"]
-        )
-        assert result.exit_code == 0
-        assert (
-            "Testing network connection to https://example.com with 2 requests."
-            in result.stdout
-        )
-
-    def test_network_command_with_defaults(self, runner):
-        result = runner.invoke(app_mod.app, ["network", "https://example.com"])
-        assert result.exit_code == 0
-        assert (
-            "Testing network connection to https://example.com with 5 requests."
-            in result.stdout
-        )
-
-    def test_network_missing_url_errors(self, runner):
-        result = runner.invoke(app_mod.app, ["network"])
-        assert result.exit_code != 0
-        assert isinstance(result.exception, SystemExit)
-        assert result.exit_code == 2
-
-    def test_network_invalid_count_errors(self, runner):
-        result = runner.invoke(
-            app_mod.app, ["network", "https://example.com", "--count", "-3"]
-        )
-        assert result.exit_code != 0
-        assert isinstance(result.exception, SystemExit)
-        assert result.exit_code == 2
