@@ -35,6 +35,8 @@ pyasn1_modules
 pydantic
 pydantic_core
 Pygments
+pytest
+pytest-ruff
 python-dotenv
 PyYAML
 requests
