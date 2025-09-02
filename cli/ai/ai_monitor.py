@@ -2,6 +2,7 @@
 AI Monitoring Module
 Collects metrics -> Analyze -> Suggest Fixes -> Execute with confirmation (ideally)
 """
+
 import json
 import subprocess
 from typing import Dict, List, Optional, Tuple, Any
@@ -20,6 +21,7 @@ from rich.panel import Panel
 load_dotenv()
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 
+
 class DataFormat(Enum):
     """
     Experiment with different data formats to find out what works best
@@ -28,11 +30,13 @@ class DataFormat(Enum):
         RAW: raw data contents
         STRUCTURED: parsed into json formats
         HYBRID: both of them
-        
+
     """
-    RAW = "raw" 
+
+    RAW = "raw"
     STRUCTURED = "structured"
     HYBRID = "hybrid"
+
 
 class Verbosity(Enum):
     """
@@ -47,6 +51,7 @@ class Verbosity(Enum):
     CONCISE = "concise"
     NORMAL = "normal"
     DETAILED = "detailed"
+
 
 @dataclass
 class SystemSnapshot:
@@ -63,10 +68,10 @@ class SystemSnapshot:
 
     load_avg: List[float]
     cpu_cores: int
-    memory_db: Dict[str,int]
+    memory_db: Dict[str, int]
     disk_usage_percent: float
 
-    # raw outputs for experimentation 
+    # raw outputs for experimentation
     raw_uptime: Optional[str] = None
     raw_free: Optional[str] = None
     raw_df: Optional[str] = None
@@ -86,19 +91,17 @@ class MetricCollector:
     """
 
     @staticmethod
-    def run_cmd(cmd:str) -> str:
+    def run_cmd(cmd: str) -> str:
         """Execute shell commands and return stripped output"""
         try:
             result = subprocess.run(
-                cmd, shell=True, capture_output=True,
-                text=True, timeout=5
+                cmd, shell=True, capture_output=True, text=True, timeout=5
             )
 
             return result.stdout.strip()
         except Exception:
             # When testing I'll see what exactly the error is then isolate it with correct error exceptons
             pass
-
 
     def collect(self, include_raw: bool = False) -> SystemSnapshot:
         """Collecting current system metrics"""
@@ -107,7 +110,7 @@ class MetricCollector:
         uptime_raw = self.run_cmd("uptime")
         # using awk to pattern search for 'average' and output the value $2
         load_str = self.run_cmd("uptime | awk -F'average:' '{print $2}'")
-        load_avg = [float(x.strip(',')) for x in load_str.split()]
+        load_avg = [float(x.strip(",")) for x in load_str.split()]
 
         # Number of cpu cores
         cores = int(self.run_cmd("nproc"))
@@ -118,7 +121,7 @@ class MetricCollector:
             "used": int(mem_info[2]),
             "free": int(mem_info[3]),
         }
-        
+
         # disk information
         disk_info = self.run_cmd("df -h / | tail -1").split()
         disk_percent = float(disk_info[4].strip("%"))
@@ -128,7 +131,7 @@ class MetricCollector:
             load_avg=load_avg,
             cpu_cores=cores,
             memory_db=memory,
-            disk_usage_percent=disk_percent
+            disk_usage_percent=disk_percent,
         )
 
         # if we want to check out the raw output we can just set that to true when calling it
@@ -147,7 +150,7 @@ class CommandExecutor:
     Command execution with confirmation by users
 
     Usage:
-    Uses for actionable fixes determine by the LLM 
+    Uses for actionable fixes determine by the LLM
     User can then determine if they want to use such commands to allow fix
     """
 
@@ -159,7 +162,7 @@ class CommandExecutor:
         "renice",
         "sync",
         # found this on stack overflow: clear caches
-        "echo 3 > /proc/sys/vm/drop_caches"
+        "echo 3 > /proc/sys/vm/drop_caches",
     ]
 
     DIAGNOSTICS_COMMANDS = [
@@ -170,9 +173,8 @@ class CommandExecutor:
         "free",
         "lsof",
         "df",
-        "top -bn1"
+        "top -bn1",
     ]
-
 
     def __init__(self, console: Console):
         self.console = console
@@ -183,7 +185,7 @@ class CommandExecutor:
 
     def execute(self, command: str, require_confirm: bool = True) -> Tuple[bool, str]:
         """
-        Execution of the command from LLM with user confirmation 
+        Execution of the command from LLM with user confirmation
 
         Usage:
             LLM will analyze our metrics and come up with some sort of solution that allows actionable cmds
@@ -196,11 +198,9 @@ class CommandExecutor:
                 if not Confirm.ask("Execute this fix?"):
                     return False, "Cancelled by user"
 
-
         try:
             result = subprocess.run(
-                command, shell=True, capture_output=True,
-                text=True, timeout=30
+                command, shell=True, capture_output=True, text=True, timeout=30
             )
 
             return result.returncode == 0, result.stdout
@@ -209,15 +209,15 @@ class CommandExecutor:
             return False, str("Error is: ", err)
 
 
-
 class AIMonitor:
     """
     Main part of the execution for the AI analysis
     """
+
     # we will need to tweak the prompt based on the output, maybe we'll create like a ranking system to value which kind
     # of the output we'd like to display
 
-    SYSTEM_PROMPT = '''
+    SYSTEM_PROMPT = """
     You are a DevOps expert analyzing system metrics.
 
     Your job:
@@ -231,13 +231,13 @@ class AIMonitor:
     ACTIONS: Specific commands to fix issues (if theres any)
     
     ONLY suggest fixes if there are actual problems.
-    '''
-    
+    """
 
-    def __init__(self, \
-                data_format: DataFormat = DataFormat.HYBRID, \
-                verbosity: Verbosity = Verbosity.NORMAL, \
-                memory_window: int = 3,
+    def __init__(
+        self,
+        data_format: DataFormat = DataFormat.HYBRID,
+        verbosity: Verbosity = Verbosity.NORMAL,
+        memory_window: int = 3,
     ):
         self.console = Console()
         self.data_format = data_format
@@ -245,9 +245,7 @@ class AIMonitor:
 
         # calling in the LLM
         self.llm = ChatGoogleGenerativeAI(
-            model="gemini-2.5-flash",
-            google_api_key=GEMINI_API_KEY,
-            temperature=0.1
+            model="gemini-2.5-flash", google_api_key=GEMINI_API_KEY, temperature=0.1
         )
 
         # memory for context
@@ -258,7 +256,6 @@ class AIMonitor:
 
         self.collector = MetricCollector()
         self.executor = CommandExecutor(self.console)
-
 
     def _prepare_data(self, snapshot: SystemSnapshot) -> str:
         """Prepare data based on format setting"""
@@ -273,22 +270,31 @@ class AIMonitor:
         elif self.data_format == DataFormat.STRUCTURED:
             # Sending structure data with json
             data = {
-                "load_avg" : snapshot.load_avg,
+                "load_avg": snapshot.load_avg,
                 "cores": snapshot.cpu_cores,
-                "load_per_core": [load/snapshot.cpu_cores for load in snapshot.load_avg],
-                "memory" : snapshot.memory_db,
-                "memory_usage_percent": (snapshot.memory_db['used'] / snapshot.memory_db['total']) * 100,
-                "disk_usage_percent" : snapshot.disk_usage_percent,
+                "load_per_core": [
+                    load / snapshot.cpu_cores for load in snapshot.load_avg
+                ],
+                "memory": snapshot.memory_db,
+                "memory_usage_percent": (
+                    snapshot.memory_db["used"] / snapshot.memory_db["total"]
+                )
+                * 100,
+                "disk_usage_percent": snapshot.disk_usage_percent,
             }
 
             return f"System Metrics:\n{json.dumps(data, indent=2)}"
 
-
         else:
             structured = {
-                "load_per_core": [line/snapshot.cpu_cores for line in snapshot.load_avg],
-                "memory_usage_percent": (snapshot.memory_db["used"] / snapshot.memory_db["total"]) * 100,
-                "disk_usage_percent": snapshot.disk_usage_percent
+                "load_per_core": [
+                    line / snapshot.cpu_cores for line in snapshot.load_avg
+                ],
+                "memory_usage_percent": (
+                    snapshot.memory_db["used"] / snapshot.memory_db["total"]
+                )
+                * 100,
+                "disk_usage_percent": snapshot.disk_usage_percent,
             }
 
             return f"""
@@ -299,14 +305,16 @@ class AIMonitor:
                 {snapshot.raw_free}
                 """
 
-    def _format_response(self, response:str) -> str:
+    def _format_response(self, response: str) -> str:
         """Formatting response based on verbosity"""
         if self.verbosity == Verbosity.CONCISE:
             # extract only the summary and critical actions
             lines = response.split("\n")
-            important = [ line for line in lines if any(
-                k in line.upper() for k in ["SUMMARY:", "CRITICAL:", "ACTION:"]
-            )]
+            important = [
+                line
+                for line in lines
+                if any(k in line.upper() for k in ["SUMMARY:", "CRITICAL:", "ACTION:"])
+            ]
 
             # maxing 3 lines
             return "\n".join(important[3:])
@@ -317,7 +325,6 @@ class AIMonitor:
 
         # If normal is selected then we'll just return regular response
         return response
-
 
     # analyzing section
     def analyze(self) -> Dict[str, Any]:
@@ -351,23 +358,20 @@ class AIMonitor:
 
         # saving to memory so the LLM can continue investigating
         self.memory.save_context(
-            {'input': f"System analysis at {snapshot.load_avg}"},
-            {'output': formatted_response}
+            {"input": f"System analysis at {snapshot.load_avg}"},
+            {"output": formatted_response},
         )
-
 
         return {
             "snapshot": snapshot,
             "analysis": formatted_response,
-            "commands": suggested_commands
+            "commands": suggested_commands,
         }
 
-
-    def _extract_commands(self, response:str) -> List[str]:
+    def _extract_commands(self, response: str) -> List[str]:
         """Extracting suggested commands from AI responses"""
         commands = []
         lines = response.split("\n")
-
 
         for line in lines:
             line = line.strip()
@@ -376,65 +380,63 @@ class AIMonitor:
             if line.startswith("$") or line.startswith("sudo") or "systemctl" in line:
                 # clean up the command
                 cmd = line.strip("$").strip()
-                
+
                 if cmd:
                     commands.append(cmd)
-
-
 
         return commands
 
     def run_fixes(self, commands: List[str]) -> List[Dict]:
         """Execute suggested fixes with user confirmation"""
         results = []
-        
+
         for cmd in commands:
             self.console.print(f"\n[yellow]Suggested fix:[/yellow] {cmd}")
-            
+
             if Confirm.ask("Execute this command?"):
                 success, output = self.executor.execute(cmd)
-                
-                results.append({
-                    "command": cmd,
-                    "success": success,
-                    "output": output[:200]
-                })
-                
+
+                results.append(
+                    {"command": cmd, "success": success, "output": output[:200]}
+                )
+
                 if success:
                     self.console.print("[green]Command executed[/green]")
                 else:
                     self.console.print(f"[red]Failed: {output}[/red]")
             else:
-                results.append({
-                    "command": cmd,
-                    "success": False,
-                    "output": "Skipped by user"
-                })
-        
+                results.append(
+                    {"command": cmd, "success": False, "output": "Skipped by user"}
+                )
+
         return results
 
     def monitor_loop(self):
         """Main monitoring loop"""
-        self.console.print(Panel.fit(
-            "[bold cyan]AI System Monitor[/bold cyan]\n"
-            "Analyzing system and suggesting optimizations",
-            border_style="cyan"
-        ))
-        
+        self.console.print(
+            Panel.fit(
+                "[bold cyan]AI System Monitor[/bold cyan]\n"
+                "Analyzing system and suggesting optimizations",
+                border_style="cyan",
+            )
+        )
+
         # analyze system
         result = self.analyze()
-        
+
         # display analysis
         self.console.print("\n[bold]Analysis:[/bold]")
         self.console.print(result["analysis"])
-        
+
         # if there are suggested fixes
         if result["commands"]:
-            self.console.print(f"\n[yellow]Found {len(result['commands'])} suggested fixes[/yellow]")
-            
+            self.console.print(
+                f"\n[yellow]Found {len(result['commands'])} suggested fixes[/yellow]"
+            )
+
             if Confirm.ask("Would you like to review and execute fixes?"):
                 fix_results = self.run_fixes(result["commands"])
-                
+
                 # print out the summary
                 self.console.print("\n[bold]Execution Summary:[/bold]")
                 for r in fix_results:
@@ -443,28 +445,19 @@ class AIMonitor:
         else:
             self.console.print("\n[green]System is healthy, no fixes needed[/green]")
 
-    
-
 
 # intergration point for main cli
 def run_ai_monitor(
-    data_format: str = "hybrid",
-    verbosity: str = "normal",
-    auto_fix: bool = False
+    data_format: str = "hybrid", verbosity: str = "normal", auto_fix: bool = False
 ):
-
     """Entry point from main CLI"""
     try:
         monitor = AIMonitor(
             data_format=DataFormat[data_format.upper()],
-            verbosity=Verbosity[verbosity.upper()]
+            verbosity=Verbosity[verbosity.upper()],
         )
         monitor.monitor_loop()
 
     except Exception as err:
         Console().print(f"[red]Error: {str(err)}[/red]")
         Console().print("[yellow]Check the API key and try again[/yellow]")
-        
-    
-
-    
