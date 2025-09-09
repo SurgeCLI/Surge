@@ -1,12 +1,17 @@
 import os
 import subprocess
 import typer
+from pathlib import Path
 from rich import print
 from typing import Annotated
 
-from config.config import merge_config
+from config.config import load_config_file
 
-
+try:
+    config = load_config_file()
+except Exception:
+    print(f'Check that a config.toml file is populated here: {repr(Path('config/toml'))}')
+    print(f'Common Problems: an API key is not set, or is invalid.')
 
 app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"

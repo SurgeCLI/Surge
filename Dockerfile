@@ -8,7 +8,7 @@ COPY cli/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 RUN pip install --no-cache-dir pytest
 
-COPY cli /app/cli
+COPY . /app
 
-ENTRYPOINT ["python", "cli/app.py"]
+ENTRYPOINT ["python", "-m", "cli.app"]
 CMD [""]
