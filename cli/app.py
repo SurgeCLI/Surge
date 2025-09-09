@@ -4,6 +4,9 @@ import typer
 from rich import print
 from typing import Annotated
 
+from config.config import merge_config
+
+
 
 app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
