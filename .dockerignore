@@ -1,0 +1,6 @@
+.github/
+.pytest_cache/
+.ruff_cache/
+.gitignore
+__pycache__/
+venv/
