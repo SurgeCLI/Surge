@@ -48,6 +48,7 @@ shellingham
 sniffio
 SQLAlchemy
 tenacity
+tomli-w
 typer
 typing-inspection
 typing_extensions

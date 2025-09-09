@@ -1,4 +1,5 @@
 import tomllib
+import tomli_w
 from pathlib import Path
 import pathlib
 
@@ -27,6 +28,10 @@ if __name__ == '__main__':
             'ai': {'format': 'hybrid', 'verbosity': 'normal', 'auto_fix': False}
         }
 
-        if Path.cwd().name == 'Surge':
-            with open(PATH, 'wb') as config:
-                print(f'Created config file at {pathlib.Path}')
+        try:
+            if Path.cwd().name == 'Surge':
+                with open(PATH, 'wb') as config:
+                    tomli_w.dump(default_data, config)
+                    print(f'Created config file at {pathlib.Path}')
+        except Exception as e:
+            print(f'Could not create config.toml file: {e}')
