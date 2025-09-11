@@ -8,10 +8,10 @@ from typing import Annotated
 from config.config import load_config_file
 
 try:
-    config = load_config_file()
+    config = load_config_file(Path("config/config.toml"))
 except Exception:
-    print(f'Check that a config.toml file is populated here: {repr(Path('config/toml'))}')
-    print(f'Common Problems: an API key is not set, or is invalid.')
+    print(f"Check that a config.toml file is populated here: '{Path.home()}'")
+    print("Common Problems: an API key is not set, or is invalid.")
 
 app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
