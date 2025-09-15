@@ -1,3 +1,4 @@
+import inspect
 import os
 import subprocess
 import typer
@@ -19,18 +20,19 @@ app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
 )
 
-def merge(config_section: dict):
+def merge(func):
     """
     Simple decorator for merging defaults with the config
     """
-    def decorator(func):
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            overrides = {k: v for k, v in kwargs.items() if v is not None}
-            merged = {**config_section, **overrides}
-            return func(*args, **merged)
-        return wrapper
-    return decorator
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        section_defaults = config.get(func.__name__, {})
+        signature = inspect.signature(func)
+        params = list(signature.parameters.keys())
+        arg_dict = dict(zip(params, args))
+        combined_kwargs = {**section_defaults, **arg_dict, **kwargs}
+        return func(**combined_kwargs)
+    return wrapper
 
 def run_cmd(cmd: str) -> str:
     """
@@ -91,7 +93,7 @@ def get_io() -> tuple[float]:
     pass
 
 @app.command()
-@merge(config.get('monitor', dict()))
+@merge
 def monitor(
     load: Annotated[
         bool, typer.Option("-l", "--load", help="Show system load averages")
