@@ -1,6 +1,8 @@
 import os
 import subprocess
 import typer
+
+from functools import wraps
 from pathlib import Path
 from rich import print
 from typing import Annotated
@@ -17,6 +19,18 @@ app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
 )
 
+def merge(config_section: dict):
+    """
+    Simple decorator for merging defaults with the config
+    """
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            overrides = {k: v for k, v in kwargs.items() if v is not None}
+            merged = {**config_section, **overrides}
+            return func(*args, **merged)
+        return wrapper
+    return decorator
 
 def run_cmd(cmd: str) -> str:
     """
@@ -76,8 +90,8 @@ def get_io() -> tuple[float]:
     # TODO: implement with iostat
     pass
 
-
 @app.command()
+@merge(config.get('monitor', dict()))
 def monitor(
     load: Annotated[
         bool, typer.Option("-l", "--load", help="Show system load averages")
@@ -149,7 +163,6 @@ def monitor(
         print(
             f"Size: {size} | Used: {used} | Available: {available} | Usage: {percent}"
         )
-
 
 @app.command("network")
 def network(

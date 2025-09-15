@@ -4,7 +4,7 @@ from pathlib import Path
 
 PATH = Path("config/config.toml")
 
-default_data = {
+DEFAULT_DATA = {
     "console": {"force_color": True, "theme": "default"},
     "monitor": {
         "interval": 5,
@@ -23,7 +23,7 @@ default_data = {
 def create_config_file(path: Path) -> None:
     try:
         with open(path, "wb") as config:
-            tomli_w.dump(default_data, config)
+            tomli_w.dump(DEFAULT_DATA, config)
             print(f"Created config file at {Path.home()}")
     except Exception as e:
         print(f"Could not create config.toml file: {e}")
@@ -33,15 +33,15 @@ def load_config_file(path: Path) -> dict:
     if not path.exists():
         print("Config file does not exist, creating new config file...")
         create_config_file(path)
-        return default_data
+        return DEFAULT_DATA
 
     with open(path, "rb") as config:
         data = tomllib.load(config)
 
     if not data:
-        print("Config file is empty, will create a new config file.")
+        print("Config file is empty, creating new config file...")
         create_config_file(path)
-        return default_data
+        return DEFAULT_DATA
 
     return data
 

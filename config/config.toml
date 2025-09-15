@@ -1,0 +1,23 @@
+[console]
+force_color = true
+theme = "default"
+
+[monitor]
+interval = 5
+load = false
+cpu = false
+ram = true
+disk = true
+io = false
+verbose = false
+
+[network]
+requests = 5
+dtype = "A"
+sockets = false
+no_trace = false
+
+[ai]
+format = "hybrid"
+verbosity = "normal"
+auto_fix = false
