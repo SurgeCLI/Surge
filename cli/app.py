@@ -1,13 +1,39 @@
 import os
 import subprocess
 import typer
+
+from pathlib import Path
 from rich import print
 from typing import Annotated
 
+from config import config
+from .merge import merge
+
+try:
+    config_data = config.load_config_file(Path("config/config.toml"))
+except Exception:
+    config_data = {}
+    print(f"Check that a config.toml file is populated here: '{Path.home()}'")
+    print("Common Problems: an API key is not set, or is invalid.")
 
 app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
 )
+
+# Merges app.command() decorator w/ transposed merge() decorator
+cmd = app.command
+
+
+def app_command_with_merge(*args, **kwargs):
+    decorator = cmd(*args, **kwargs)
+
+    def wrapper(func):
+        return decorator(merge()(func))
+
+    return wrapper
+
+
+app.command = app_command_with_merge
 
 
 def run_cmd(cmd: str) -> str:
