@@ -4,8 +4,8 @@ theme = "default"
 
 [monitor]
 interval = 5
-load = false
-cpu = false
+load = true
+cpu = true
 ram = true
 disk = true
 io = false

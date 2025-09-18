@@ -1,18 +1,18 @@
-import inspect
 import os
 import subprocess
 import typer
 
-from functools import wraps
 from pathlib import Path
 from rich import print
 from typing import Annotated
 
-from config.config import load_config_file
+from config import config
+from .merge import merge
 
 try:
-    config = load_config_file(Path("config/config.toml"))
+    config_data = config.load_config_file(Path("config/config.toml"))
 except Exception:
+    config_data = {}
     print(f"Check that a config.toml file is populated here: '{Path.home()}'")
     print("Common Problems: an API key is not set, or is invalid.")
 
@@ -20,19 +20,6 @@ app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
 )
 
-def merge(func):
-    """
-    Simple decorator for merging defaults with the config
-    """
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        section_defaults = config.get(func.__name__, {})
-        signature = inspect.signature(func)
-        params = list(signature.parameters.keys())
-        arg_dict = dict(zip(params, args))
-        combined_kwargs = {**section_defaults, **arg_dict, **kwargs}
-        return func(**combined_kwargs)
-    return wrapper
 
 def run_cmd(cmd: str) -> str:
     """
@@ -92,8 +79,9 @@ def get_io() -> tuple[float]:
     # TODO: implement with iostat
     pass
 
+
 @app.command()
-@merge
+@merge()
 def monitor(
     load: Annotated[
         bool, typer.Option("-l", "--load", help="Show system load averages")
@@ -165,6 +153,7 @@ def monitor(
         print(
             f"Size: {size} | Used: {used} | Available: {available} | Usage: {percent}"
         )
+
 
 @app.command("network")
 def network(
