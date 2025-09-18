@@ -20,6 +20,21 @@ app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
 )
 
+# Merges app.command() decorator w/ transposed merge() decorator
+cmd = app.command
+
+
+def app_command_with_merge(*args, **kwargs):
+    decorator = cmd(*args, **kwargs)
+
+    def wrapper(func):
+        return decorator(merge()(func))
+
+    return wrapper
+
+
+app.command = app_command_with_merge
+
 
 def run_cmd(cmd: str) -> str:
     """
@@ -81,7 +96,6 @@ def get_io() -> tuple[float]:
 
 
 @app.command()
-@merge()
 def monitor(
     load: Annotated[
         bool, typer.Option("-l", "--load", help="Show system load averages")
