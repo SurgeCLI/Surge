@@ -3,7 +3,12 @@ import subprocess
 import typer
 
 from pathlib import Path
+
 from rich import print
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+
 from typing import Annotated
 
 from config import config
@@ -19,6 +24,8 @@ except Exception:
 app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
 )
+
+console = Console(force_terminal=True)
 
 # Merges app.command() decorator w/ transposed merge() decorator
 cmd = app.command
@@ -130,23 +137,43 @@ def monitor(
     if load:
         averages, cores = get_load()
 
-        print("\n[bold]System Load Averages[/bold]")
-        print("---------------------")
+        table = Table(
+            title="System Load Averages",
+            title_style="bold cyan",
+            header_style="bold cyan",
+            show_lines=True,
+            expand=False,
+        )
 
-        if not verbose:
-            print(f"Load avg (1m): {averages[0]}")
-            print(f"Load avg (5m): {averages[1]}")
-            print(f"Load avg (15m): {averages[2]}")
-        else:
-            print(
-                f"Load avg (1m): {averages[0]:.2f} ({averages[0] / cores:.3f} per CPU)"
+        table.add_column("Interval", justify="center")
+        table.add_column("Load", justify="center")
+        if verbose:
+            table.add_column("Per CPU Util", justify="center")
+            table.add_column("Status", justify="center")
+
+        intervals = ["1 Minute", "5 Minutes", "15 Minutes"]
+
+        for i, interval in enumerate(intervals):
+            load_val = averages[i]
+            if verbose:
+                per_cpu = load_val / cores
+
+                if per_cpu < 0.7:
+                    status = "[green]OK[/green]"
+                elif per_cpu < 1.0:
+                    status = "[yellow]High System Load[/yellow]"
+                else:
+                    status = "[bold red]System Likely Overloaded[/bold red]"
+
+                table.add_row(interval, f"{load_val:.2f}", f"{per_cpu:.3f}", status)
+            else:
+                table.add_row(interval, f"{load_val:.2f}")
+
+        console.print(
+            Panel(
+                table, title="[bold cyan]System Load[/bold cyan]", border_style="cyan"
             )
-            print(
-                f"Load avg (5m): {averages[1]:.2f} ({averages[1] / cores:.3f} per CPU)"
-            )
-            print(
-                f"Load avg (15m): {averages[2]:.2f} ({averages[2] / cores:.3f} per CPU)"
-            )
+        )
 
     if cpu:
         user, system, idle = get_cpu()
