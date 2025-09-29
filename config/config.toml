@@ -1,6 +1,5 @@
 [console]
 force_color = true
-theme = "default"
 
 [monitor]
 interval = 5

@@ -5,7 +5,7 @@ from pathlib import Path
 PATH = Path("config/config.toml")
 
 DEFAULT_DATA = {
-    "console": {"force_color": True, "theme": "default"},
+    "console": {"force_color": True},
     "monitor": {
         "interval": 5,
         "load": True,

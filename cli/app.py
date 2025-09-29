@@ -25,7 +25,11 @@ app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
 )
 
-console = Console(force_terminal=True)
+console_config = config_data.get("console", {})
+
+console = Console(
+    force_terminal=console_config.get("force_color", True),
+)
 
 # Merges app.command() decorator w/ transposed merge() decorator
 cmd = app.command
