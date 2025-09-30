@@ -106,6 +106,22 @@ def get_io() -> tuple[float]:
     pass
 
 
+def create_table(
+    title: str,
+    title_style: str = "bold cyan",
+    header_style: str = "bold cyan",
+    show_lines: bool = True,
+    expand: bool = False,
+) -> Table:
+    return Table(
+        title=title,
+        title_style=title_style,
+        header_style=header_style,
+        show_lines=show_lines,
+        expand=expand,
+    )
+
+
 @app.command()
 def monitor(
     load: Annotated[
@@ -141,13 +157,7 @@ def monitor(
     if load:
         averages, cores = get_load()
 
-        table = Table(
-            title="System Load Averages",
-            title_style="bold cyan",
-            header_style="bold cyan",
-            show_lines=True,
-            expand=False,
-        )
+        table = create_table("System Load Averages")
 
         table.add_column("Interval", justify="center")
         table.add_column("Load", justify="center")
