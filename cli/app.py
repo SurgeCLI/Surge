@@ -191,22 +191,36 @@ def monitor(
 
     if cpu:
         user, system, idle = get_cpu()
-        print("\n[bold]CPU Utilization[/bold]")
-        print("---------------------")
-        print(f"User: {user}% | System: {system}% | Idle: {idle}%")
+        table = create_table("CPU Utilization")
+        table.add_column("User (%)", justify="center")
+        table.add_column("System (%)", justify="center")
+        table.add_column("Idle (%)", justify="center")
+        table.add_row(user, system, idle)
+        console.print(
+            Panel(table, title="[bold cyan]CPU Usage[/bold cyan]", border_style="cyan")
+        )
 
     if ram:
         total, used, free = get_memory()
-        print("\n[bold]Memory Usage (MB)[/bold]")
-        print("---------------------")
-        print(f"Total: {total} | Used: {used} | Free: {free}")
+        table = create_table("Memory Usage (MB)")
+        table.add_column("Total", justify="center")
+        table.add_column("Used", justify="center")
+        table.add_column("Free", justify="center")
+        table.add_row(total, used, free)
+        console.print(
+            Panel(table, title="[bold cyan]Memory[/bold cyan]", border_style="cyan")
+        )
 
     if disk:
         size, used, available, percent = get_disk()
-        print("\n[bold]Disk Usage[/bold]")
-        print("---------------------")
-        print(
-            f"Size: {size} | Used: {used} | Available: {available} | Usage: {percent}"
+        table = create_table("Disk Usage")
+        table.add_column("Size", justify="center")
+        table.add_column("Used", justify="center")
+        table.add_column("Available", justify="center")
+        table.add_column("Usage %", justify="center")
+        table.add_row(size, used, available, percent)
+        console.print(
+            Panel(table, title="[bold cyan]Disk[/bold cyan]", border_style="cyan")
         )
 
 
