@@ -4,7 +4,9 @@ import typer
 
 from pathlib import Path
 
+from rich import box
 from rich import print
+from rich.columns import Columns
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
@@ -110,15 +112,17 @@ def create_table(
     title: str,
     title_style: str = "bold cyan",
     header_style: str = "bold cyan",
-    show_lines: bool = True,
-    expand: bool = False,
 ) -> Table:
     return Table(
         title=title,
         title_style=title_style,
         header_style=header_style,
-        show_lines=show_lines,
-        expand=expand,
+        expand=False,
+        pad_edge=False,
+        show_lines=True,
+        box=box.ROUNDED,
+        border_style="grey37",
+        style="grey50"
     )
 
 
@@ -154,10 +158,12 @@ def monitor(
     #   if verbose:
     #       ...
 
+    panels = []
+
     if load:
         averages, cores = get_load()
 
-        table = create_table("System Load Averages")
+        table = create_table("")
 
         table.add_column("Interval", justify="center")
         table.add_column("Load", justify="center")
@@ -183,46 +189,49 @@ def monitor(
             else:
                 table.add_row(interval, f"{load_val:.2f}")
 
-        console.print(
+        panels.append(
             Panel(
-                table, title="[bold cyan]System Load[/bold cyan]", border_style="cyan"
+                table, title="[bold cyan]System Load Averages[/bold cyan]", border_style="cyan"
             )
         )
 
     if cpu:
         user, system, idle = get_cpu()
-        table = create_table("CPU Utilization")
+        table = create_table("")
         table.add_column("User (%)", justify="center")
         table.add_column("System (%)", justify="center")
         table.add_column("Idle (%)", justify="center")
         table.add_row(user, system, idle)
-        console.print(
+        panels.append(
             Panel(table, title="[bold cyan]CPU Usage[/bold cyan]", border_style="cyan")
         )
 
     if ram:
         total, used, free = get_memory()
-        table = create_table("Memory Usage (MB)")
-        table.add_column("Total", justify="center")
-        table.add_column("Used", justify="center")
-        table.add_column("Free", justify="center")
+        table = create_table("")
+        table.add_column("Total (MB)", justify="center")
+        table.add_column("Used (MB)", justify="center")
+        table.add_column("Free (MB)", justify="center")
         table.add_row(total, used, free)
-        console.print(
-            Panel(table, title="[bold cyan]Memory[/bold cyan]", border_style="cyan")
+        panels.append(
+            Panel(table, title="[bold cyan]Memory Usage[/bold cyan]", border_style="cyan")
         )
 
     if disk:
         size, used, available, percent = get_disk()
-        table = create_table("Disk Usage")
+        table = create_table("")
         table.add_column("Size", justify="center")
         table.add_column("Used", justify="center")
         table.add_column("Available", justify="center")
         table.add_column("Usage %", justify="center")
         table.add_row(size, used, available, percent)
-        console.print(
-            Panel(table, title="[bold cyan]Disk[/bold cyan]", border_style="cyan")
+        panels.append(
+            Panel(table, title="[bold cyan]Disk Usage[/bold cyan]", border_style="cyan")
         )
 
+    columns = Columns(panels)
+    dashboard = Panel(columns, title="Monitoring Dashboard", border_style="bold green")
+    console.print(dashboard)
 
 @app.command("network")
 def network(
