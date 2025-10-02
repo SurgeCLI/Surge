@@ -151,12 +151,6 @@ def monitor(
     Summary of all system metrics, including utilization of CPU, Memory, Network, and I/O.
     """
 
-    # TODO: Add category specific metrics using subprocess, psutil, or similar
-    # General structure example:
-    # if cpu:
-    #   ...
-    #   if verbose:
-    #       ...
 
     panels = []
 
@@ -201,7 +195,20 @@ def monitor(
         table.add_column("User (%)", justify="center")
         table.add_column("System (%)", justify="center")
         table.add_column("Idle (%)", justify="center")
-        table.add_row(user, system, idle)
+        table.add_column("Status", justify="center")
+
+        used = float(user) + float(system)
+        total = used + float(idle)
+        usage = (used / total) * 100
+        
+        if usage >= 85:
+            status = "[red]Critical CPU Usage[/red]"
+        elif usage >= 70:
+            status = "[yellow]High CPU Usage[/yellow]"
+        else:
+            status = "[green]OK[/green]"
+        
+        table.add_row(user, system, idle, status)
         panels.append(
             Panel(table, title="[bold cyan]CPU Usage[/bold cyan]", border_style="cyan")
         )
@@ -212,7 +219,15 @@ def monitor(
         table.add_column("Total (MB)", justify="center")
         table.add_column("Used (MB)", justify="center")
         table.add_column("Free (MB)", justify="center")
-        table.add_row(total, used, free)
+        table.add_column("Status", justify="center")
+
+        if (float(used) / float(total)) * 100 >= 85:
+            status = "[yellow]High Memory Usage[/yellow]"
+        else:
+            status = "[green]OK[/green]"
+
+
+        table.add_row(total, used, free, status)
         panels.append(
             Panel(table, title="[bold cyan]Memory Usage[/bold cyan]", border_style="cyan")
         )
