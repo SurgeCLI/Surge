@@ -2,7 +2,7 @@
 force_color = true
 
 [monitor]
-interval = 5
+process = 5
 load = true
 cpu = true
 ram = true

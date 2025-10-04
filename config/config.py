@@ -7,7 +7,7 @@ PATH = Path("config/config.toml")
 DEFAULT_DATA = {
     "console": {"force_color": True},
     "monitor": {
-        "interval": 5,
+        "monitor": 5,
         "load": True,
         "cpu": True,
         "ram": True,

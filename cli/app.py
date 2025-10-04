@@ -103,9 +103,19 @@ def get_disk() -> tuple[float]:
     return size, used, available, percent
 
 
-def get_io() -> tuple[float]:
-    # TODO: implement with iostat
-    pass
+def get_top_processes(n: int = 5):
+    def fetch_top(sort_by: str):
+        result = run_cmd(f"ps aux --sort=-{sort_by} | head -n {n + 1}").splitlines()
+        headers = result[0].split()
+        ps = []
+        for line in result[1:]:
+            parts = line.split(None, len(headers) - 1)
+            ps.append(dict(zip(headers, parts)))
+        return ps
+
+    top_cpu = fetch_top("%cpu")
+    top_mem = fetch_top("%mem")
+    return top_cpu, top_mem
 
 
 def create_table(
@@ -122,7 +132,7 @@ def create_table(
         show_lines=True,
         box=box.ROUNDED,
         border_style="grey37",
-        style="grey50"
+        style="grey50",
     )
 
 
@@ -137,20 +147,19 @@ def monitor(
     io: Annotated[
         bool, typer.Option("-o", "--io", help="Show Disk I/O statistics")
     ] = True,
-    interval: Annotated[
-        int, typer.Option("-i", "--interval", help="Polling interval in seconds")
+    process: Annotated[
+        int,
+        typer.Option(
+            "-p", "--ps", "--process", help="Show the top n processes by CPU and RAM"
+        ),
     ] = 5,
     verbose: Annotated[
         bool, typer.Option("-v", "--verbose", help="Show detailed system metrics")
     ] = False,
 ):
-    if interval <= 0:
-        raise typer.BadParameter("Interval must be a positive integer.")
-
     """
     Summary of all system metrics, including utilization of CPU, Memory, Network, and I/O.
     """
-
 
     panels = []
 
@@ -185,7 +194,9 @@ def monitor(
 
         panels.append(
             Panel(
-                table, title="[bold cyan]System Load Averages[/bold cyan]", border_style="cyan"
+                table,
+                title="[bold cyan]System Load Averages[/bold cyan]",
+                border_style="cyan",
             )
         )
 
@@ -200,14 +211,14 @@ def monitor(
         used = float(user) + float(system)
         total = used + float(idle)
         usage = (used / total) * 100
-        
+
         if usage >= 85:
             status = "[red]Critical CPU Usage[/red]"
         elif usage >= 70:
             status = "[yellow]High CPU Usage[/yellow]"
         else:
             status = "[green]OK[/green]"
-        
+
         table.add_row(user, system, idle, status)
         panels.append(
             Panel(table, title="[bold cyan]CPU Usage[/bold cyan]", border_style="cyan")
@@ -226,10 +237,11 @@ def monitor(
         else:
             status = "[green]OK[/green]"
 
-
         table.add_row(total, used, free, status)
         panels.append(
-            Panel(table, title="[bold cyan]Memory Usage[/bold cyan]", border_style="cyan")
+            Panel(
+                table, title="[bold cyan]Memory Usage[/bold cyan]", border_style="cyan"
+            )
         )
 
     if disk:
@@ -244,9 +256,32 @@ def monitor(
             Panel(table, title="[bold cyan]Disk Usage[/bold cyan]", border_style="cyan")
         )
 
+    if process:
+        list_cpu, _ = get_top_processes(process)
+
+        table = create_table("")
+        table.add_column("PID", justify="center")
+        table.add_column("CPU (%)", justify="center")
+        table.add_column("MEM (%)", justify="center")
+        table.add_column("Command", justify="center")
+
+        for proc in list_cpu:
+            cmd = proc["COMMAND"]
+            cmd = cmd[:27] + "..." if len(cmd) > 30 else cmd
+            table.add_row(proc["PID"], proc["%CPU"], proc["%MEM"], cmd)
+
+        panels.append(
+            Panel(
+                table,
+                title=f"[bold yellow]Top {process} Processes by CPU[/bold yellow]",
+                border_style="yellow",
+            )
+        )
+
     columns = Columns(panels)
     dashboard = Panel(columns, title="Monitoring Dashboard", border_style="bold green")
     console.print(dashboard)
+
 
 @app.command("network")
 def network(
