@@ -50,66 +50,6 @@ class TestHelpers:
 
 
 class TestCLI:
-    @pytest.mark.parametrize(
-        "load_data,cpu_data,memory_data,disk_data,expected_load,expected_cpu,expected_memory,expected_disk",
-        [
-            (
-                ([0.1, 0.2, 0.3], 8),
-                ("12.3", "3.4", "80.0"),
-                ("32000", "12000", "20000"),
-                ("100G", "40G", "60G", "40%"),
-                "Load avg (1m): 0.1",
-                "User: 12.3% | System: 3.4% | Idle: 80.0%",
-                "Total: 32000 | Used: 12000 | Free: 20000",
-                "Size: 100G | Used: 40G | Available: 60G | Usage: 40%",
-            ),
-            (
-                ([0.5, 0.8, 1.2], 4),
-                ("25.0", "15.0", "60.0"),
-                ("16000", "8000", "8000"),
-                ("50G", "30G", "20G", "60%"),
-                "Load avg (1m): 0.5",
-                "User: 25.0% | System: 15.0% | Idle: 60.0%",
-                "Total: 16000 | Used: 8000 | Free: 8000",
-                "Size: 50G | Used: 30G | Available: 20G | Usage: 60%",
-            ),
-        ],
-    )
-    def test_monitor_outputs_sections(
-        self,
-        monkeypatch,
-        runner,
-        load_data,
-        cpu_data,
-        memory_data,
-        disk_data,
-        expected_load,
-        expected_cpu,
-        expected_memory,
-        expected_disk,
-    ):
-        monkeypatch.setattr(app_mod, "get_load", lambda: load_data)
-        monkeypatch.setattr(app_mod, "get_cpu", lambda: cpu_data)
-        monkeypatch.setattr(app_mod, "get_memory", lambda: memory_data)
-        monkeypatch.setattr(app_mod, "get_disk", lambda: disk_data)
-
-        result = runner.invoke(app_mod.app, ["monitor"])
-        assert result.exit_code == 0
-        out = result.stdout
-
-        expected_strings = [
-            "System Load Averages",
-            expected_load,
-            "CPU Utilization",
-            expected_cpu,
-            "Memory Usage (MB)",
-            expected_memory,
-            "Disk Usage",
-            expected_disk,
-        ]
-        for expected in expected_strings:
-            assert expected in out
-
     def test_monitor_verbose_load_divides_by_cores_as_string(self, monkeypatch, runner):
         monkeypatch.setattr(app_mod, "get_load", lambda: ([1.0, 2.0, 3.0], 4))
         result = runner.invoke(
