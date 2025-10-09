@@ -3,7 +3,14 @@ import subprocess
 import typer
 
 from pathlib import Path
+
+from rich import box
 from rich import print
+from rich.columns import Columns
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+
 from typing import Annotated
 
 from config import config
@@ -18,6 +25,12 @@ except Exception:
 
 app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
+)
+
+console_config = config_data.get("console", {})
+
+console = Console(
+    force_terminal=console_config.get("force_color", True),
 )
 
 # Merges app.command() decorator w/ transposed merge() decorator
@@ -90,9 +103,37 @@ def get_disk() -> tuple[float]:
     return size, used, available, percent
 
 
-def get_io() -> tuple[float]:
-    # TODO: implement with iostat
-    pass
+def get_top_processes(n: int = 5):
+    def fetch_top(sort_by: str):
+        result = run_cmd(f"ps aux --sort=-{sort_by} | head -n {n + 1}").splitlines()
+        headers = result[0].split()
+        ps = []
+        for line in result[1:]:
+            parts = line.split(None, len(headers) - 1)
+            ps.append(dict(zip(headers, parts)))
+        return ps
+
+    top_cpu = fetch_top("%cpu")
+    top_mem = fetch_top("%mem")
+    return top_cpu, top_mem
+
+
+def create_table(
+    title: str,
+    title_style: str = "bold cyan",
+    header_style: str = "bold cyan",
+) -> Table:
+    return Table(
+        title=title,
+        title_style=title_style,
+        header_style=header_style,
+        expand=False,
+        pad_edge=False,
+        show_lines=True,
+        box=box.ROUNDED,
+        border_style="grey37",
+        style="grey50",
+    )
 
 
 @app.command()
@@ -106,67 +147,140 @@ def monitor(
     io: Annotated[
         bool, typer.Option("-o", "--io", help="Show Disk I/O statistics")
     ] = True,
-    interval: Annotated[
-        int, typer.Option("-i", "--interval", help="Polling interval in seconds")
+    process: Annotated[
+        int,
+        typer.Option(
+            "-p", "--ps", "--process", help="Show the top n processes by CPU and RAM"
+        ),
     ] = 5,
     verbose: Annotated[
         bool, typer.Option("-v", "--verbose", help="Show detailed system metrics")
     ] = False,
 ):
-    if interval <= 0:
-        raise typer.BadParameter("Interval must be a positive integer.")
-
     """
     Summary of all system metrics, including utilization of CPU, Memory, Network, and I/O.
     """
 
-    # TODO: Add category specific metrics using subprocess, psutil, or similar
-    # General structure example:
-    # if cpu:
-    #   ...
-    #   if verbose:
-    #       ...
+    panels = []
 
     if load:
         averages, cores = get_load()
 
-        print("\n[bold]System Load Averages[/bold]")
-        print("---------------------")
+        table = create_table("")
 
-        if not verbose:
-            print(f"Load avg (1m): {averages[0]}")
-            print(f"Load avg (5m): {averages[1]}")
-            print(f"Load avg (15m): {averages[2]}")
-        else:
-            print(
-                f"Load avg (1m): {averages[0]:.2f} ({averages[0] / cores:.3f} per CPU)"
+        table.add_column("Interval", justify="center")
+        table.add_column("Load", justify="center")
+        if verbose:
+            table.add_column("Per CPU Util", justify="center")
+            table.add_column("Status", justify="center")
+
+        intervals = ["1 Minute", "5 Minutes", "15 Minutes"]
+
+        for i, interval in enumerate(intervals):
+            load_val = averages[i]
+            if verbose:
+                per_cpu = load_val / cores
+
+                if per_cpu < 0.7:
+                    status = "[green]OK[/green]"
+                elif per_cpu < 1.0:
+                    status = "[yellow]High System Load[/yellow]"
+                else:
+                    status = "[bold red]System Likely Overloaded[/bold red]"
+
+                table.add_row(interval, f"{load_val:.2f}", f"{per_cpu:.3f}", status)
+            else:
+                table.add_row(interval, f"{load_val:.2f}")
+
+        panels.append(
+            Panel(
+                table,
+                title="[bold cyan]System Load Averages[/bold cyan]",
+                border_style="cyan",
             )
-            print(
-                f"Load avg (5m): {averages[1]:.2f} ({averages[1] / cores:.3f} per CPU)"
-            )
-            print(
-                f"Load avg (15m): {averages[2]:.2f} ({averages[2] / cores:.3f} per CPU)"
-            )
+        )
 
     if cpu:
         user, system, idle = get_cpu()
-        print("\n[bold]CPU Utilization[/bold]")
-        print("---------------------")
-        print(f"User: {user}% | System: {system}% | Idle: {idle}%")
+        table = create_table("")
+        table.add_column("User (%)", justify="center")
+        table.add_column("System (%)", justify="center")
+        table.add_column("Idle (%)", justify="center")
+        table.add_column("Status", justify="center")
+
+        used = float(user) + float(system)
+        total = used + float(idle)
+        usage = (used / total) * 100
+
+        if usage >= 85:
+            status = "[red]Critical CPU Usage[/red]"
+        elif usage >= 70:
+            status = "[yellow]High CPU Usage[/yellow]"
+        else:
+            status = "[green]OK[/green]"
+
+        table.add_row(user, system, idle, status)
+        panels.append(
+            Panel(table, title="[bold cyan]CPU Usage[/bold cyan]", border_style="cyan")
+        )
 
     if ram:
         total, used, free = get_memory()
-        print("\n[bold]Memory Usage (MB)[/bold]")
-        print("---------------------")
-        print(f"Total: {total} | Used: {used} | Free: {free}")
+        table = create_table("")
+        table.add_column("Total (MB)", justify="center")
+        table.add_column("Used (MB)", justify="center")
+        table.add_column("Free (MB)", justify="center")
+        table.add_column("Status", justify="center")
+
+        if (float(used) / float(total)) * 100 >= 85:
+            status = "[yellow]High Memory Usage[/yellow]"
+        else:
+            status = "[green]OK[/green]"
+
+        table.add_row(total, used, free, status)
+        panels.append(
+            Panel(
+                table, title="[bold cyan]Memory Usage[/bold cyan]", border_style="cyan"
+            )
+        )
 
     if disk:
         size, used, available, percent = get_disk()
-        print("\n[bold]Disk Usage[/bold]")
-        print("---------------------")
-        print(
-            f"Size: {size} | Used: {used} | Available: {available} | Usage: {percent}"
+        table = create_table("")
+        table.add_column("Size", justify="center")
+        table.add_column("Used", justify="center")
+        table.add_column("Available", justify="center")
+        table.add_column("Usage %", justify="center")
+        table.add_row(size, used, available, percent)
+        panels.append(
+            Panel(table, title="[bold cyan]Disk Usage[/bold cyan]", border_style="cyan")
         )
+
+    if process:
+        list_cpu, _ = get_top_processes(process)
+
+        table = create_table("")
+        table.add_column("PID", justify="center")
+        table.add_column("CPU (%)", justify="center")
+        table.add_column("MEM (%)", justify="center")
+        table.add_column("Command", justify="center")
+
+        for proc in list_cpu:
+            cmd = proc["COMMAND"]
+            cmd = cmd[:27] + "..." if len(cmd) > 30 else cmd
+            table.add_row(proc["PID"], proc["%CPU"], proc["%MEM"], cmd)
+
+        panels.append(
+            Panel(
+                table,
+                title=f"[bold yellow]Top {process} Processes by CPU[/bold yellow]",
+                border_style="yellow",
+            )
+        )
+
+    columns = Columns(panels)
+    dashboard = Panel(columns, title="Monitoring Dashboard", border_style="bold green")
+    console.print(dashboard)
 
 
 @app.command("network")

@@ -1,9 +1,8 @@
 [console]
 force_color = true
-theme = "default"
 
 [monitor]
-interval = 5
+process = 5
 load = true
 cpu = true
 ram = true
