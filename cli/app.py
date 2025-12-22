@@ -1,5 +1,8 @@
 import os
+import signal
 import subprocess
+import sys
+import time
 import typer
 
 from pathlib import Path
@@ -26,6 +29,17 @@ except Exception:
 app = typer.Typer(
     help="Surge - A DevOps CLI Tool For System Monitoring and Production Reliability"
 )
+
+# --- Signal Termination / Process Lifecycle ---
+shutdown = False
+
+def _handle_signal(signum, frame):
+    global shutdown
+    shutdown = True
+
+signal.signal(signal.SIGINT, _handle_signal)
+signal.signal(signal.SIGTERM, _handle_signal)
+# ---
 
 console_config = config_data.get("console", {})
 
@@ -468,6 +482,26 @@ def ai(
     except Exception as err:
         print(f"[red]Error: {str(err)}[/red]")
 
+@app.command('start')
+def start(startup: Annotated[
+        bool | None,
+        typer.Option("-s", "--startup", help="Startup command as Typer entrypoint", show_default=False),
+        ] = None):
+    if startup:
+        try:
+            monitor()
+        except Exception as err:
+            print(err)
+    print('[Surge] Service Started.')
+
+    try:
+        while not shutdown:
+            try:
+                signal.pause()
+            except Exception:
+                time.sleep(1)
+    finally:
+        print('[Surge] Shutting down.')
 
 if __name__ == "__main__":
     app()
