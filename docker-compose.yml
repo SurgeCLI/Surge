@@ -1,11 +1,4 @@
 services:
-  surge:
-    build: .
-    environment:
-      PROMETHEUS_URL: http://prometheus:9090
-    depends_on:
-      - prometheus
-  
   prometheus:
     image: prom/prometheus:latest
     volumes:

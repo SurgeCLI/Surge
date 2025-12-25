@@ -1,0 +1,11 @@
+[project]
+name = "surge"
+version = "0"
+description = "Surge is a CLI tool and agentic DevOps/SRE inference solution for real‑time system/network monitoring and dashboarding."
+requires-python = ">=3.11"
+
+[project.scripts]
+surge = "cli.app:app"
+
+[tool.setuptools.packages.find]
+include = ["cli", "cli.*", "config", "config.*"]

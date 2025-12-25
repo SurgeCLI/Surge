@@ -4,10 +4,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends iputils-ping tr
 
 WORKDIR /app
 
-COPY cli/requirements.txt .
+COPY cli/requirements.txt ./requirements.txt
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . /app
+COPY cli ./cli
+COPY config ./config
+COPY pyproject.toml .
 
-ENTRYPOINT ["python", "-m", "cli.app"]
-CMD ["start", "--startup"]
+RUN pip install --no-cache-dir .
+
+ENTRYPOINT ["surge"]
+CMD ["--help"]
