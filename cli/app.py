@@ -16,6 +16,8 @@ from typing import Annotated
 from config import config
 from .merge import merge
 
+from .prometheus import query_prometheus_metrics
+
 try:
     config_data = config.load_config_file(Path("config/config.toml"))
 except Exception:
@@ -49,6 +51,8 @@ def app_command_with_merge(*args, **kwargs):
 app.command = app_command_with_merge
 
 
+# In Prometheus/PromQL version, subprocess isn't required for system metrics 
+
 def run_cmd(cmd: str) -> str:
     """
     Helper function to abstract lengthy subprocess command implementation :D
@@ -59,48 +63,97 @@ def run_cmd(cmd: str) -> str:
     ).stdout.strip()
 
 
-def get_load() -> tuple[float] | int:
+def get_load() -> tuple[list[float], int]:
     """
-    Utilizes Linux uptime for system load metrics and to determine core utilization
+    Returns 1 minute, 5 minute, and 15 minute load averages and CPU core count
     """
 
-    uptime = run_cmd("uptime | awk -F'average:' '{print $2}'")
-    averages = [float(x.replace(",", "")) for x in uptime.split()]
-    cores = float(run_cmd("nproc"))
+    load_query = 'node_load1 or node_load5 or node_load15'
+    results = query_prometheus_metrics(load_query)
 
-    return averages, cores
+    loads = {
+        'node_load1': 0.0,
+        'node_load5': 0.0,
+        'node_load15': 0.0,
+    }
+
+    for item in results:
+        name = item['metric'].get('__name__')
+        value = float(item['value'][1])
+        if name in loads:
+            loads[name] = value
+
+    cores_query = 'count(node_cpu_seconds_total{mode="idle"})'
+    cores_result = query_prometheus_metrics(cores_query)
+    cores = int(float(cores_result[0]['value'][1])) if cores_result else 1
+
+    return [loads['node_load1'], loads['node_load5'], loads['node_load15']], cores
 
 
-def get_cpu() -> tuple[float]:
+def get_cpu() -> tuple[float, float, float]:
     """
-    Uses top to find CPU utilization grouped by user, system, and idle percents.
+    Returns cpu percent utilization for user, system, and idle
     """
-    top = run_cmd('top -bn1 | grep "Cpu(s)"').split(",")
-    user = top[0].split()[-2]
-    system = top[1].split()[0]
-    idle = top[3].split()[0]
 
-    return user, system, idle
+    query = '''
+        avg by (mode) (
+    rate(node_cpu_seconds_total{mode=~"user|system|idle"}[5m])
+    ) * 100
+    '''
+    results = query_prometheus_metrics(query)
+
+    cpu = {
+        'user': 0.0, 
+        'system': 0.0, 
+        'idle': 0.0
+    }
+
+    for item in results:
+        mode = item['metric'].get('mode')
+        value = float(item['value'][1])
+        if mode in cpu:
+            cpu[mode] = value
+
+    return cpu['user'], cpu['system'], cpu['idle']
 
 
-def get_memory() -> tuple[float]:
+def get_memory() -> tuple[float, float, float]:
     """
-    Returns remaining memory by group using free.
+    Returns memory usage in MB: total, used, and free
     """
-    free = run_cmd("free -m | grep Mem").split()
-    total, used, free_mem = free[1], free[2], free[3]
+    total_res = query_prometheus_metrics('node_memory_MemTotal_bytes')
+    avail_res = query_prometheus_metrics('node_memory_MemAvailable_bytes')
 
-    return total, used, free_mem
+    total_mb = (float(total_res[0]['value'][1]) / 1024 / 1024 if total_res else 0.0)
+    free_mb = (float(avail_res[0]['value'][1]) / 1024 / 1024 if avail_res else 0.0)
+    used_mb = max(total_mb - free_mb, 0.0)
+
+    return total_mb, used_mb, free_mb
 
 
-def get_disk() -> tuple[float]:
+def get_disk() -> tuple[float, float, float, float]:
     """
-    Returns disk usage with df.
+    Returns disk usage in GB: size, used, available, and percent
     """
-    df = run_cmd("df -h / | tail -1").split()
-    size, used, available, percent = df[1], df[2], df[3], df[4]
 
-    return size, used, available, percent
+    size_query = '''
+        node_filesystem_size_bytes{fstype!~'tmpfs|overlay|squashfs'}
+    '''
+
+    avail_query = '''
+        node_filesystem_avail_bytes{fstype!~'tmpfs|overlay|squashfs'}
+    '''
+    
+    size_res = query_prometheus_metrics(size_query)
+    avail_res = query_prometheus_metrics(avail_query)
+
+
+    size_gb = sum(float(item['value'][1]) for item in size_res) / 1024**3 if size_res else 0.0
+    free_gb = sum(float(item['value'][1]) for item in avail_res) / 1024**3 if avail_res else 0.0
+    used_gb = max(size_gb - free_gb, 0.0)
+    percent = (used_gb / size_gb * 100) if size_gb else 0.0
+
+    return size_gb, used_gb, free_gb, percent
 
 
 def get_top_processes(n: int = 5):
@@ -219,7 +272,7 @@ def monitor(
         else:
             status = "[green]OK[/green]"
 
-        table.add_row(user, system, idle, status)
+        table.add_row(f'{user:.2f}', f'{system:.2f}', f'{idle:.2f}', status)
         panels.append(
             Panel(table, title="[bold cyan]CPU Usage[/bold cyan]", border_style="cyan")
         )
@@ -237,7 +290,7 @@ def monitor(
         else:
             status = "[green]OK[/green]"
 
-        table.add_row(total, used, free, status)
+        table.add_row(f'{total:.0f}', f'{used:.0f}', f'{free:.0f}', status)
         panels.append(
             Panel(
                 table, title="[bold cyan]Memory Usage[/bold cyan]", border_style="cyan"
@@ -251,7 +304,7 @@ def monitor(
         table.add_column("Used", justify="center")
         table.add_column("Available", justify="center")
         table.add_column("Usage %", justify="center")
-        table.add_row(size, used, available, percent)
+        table.add_row(f'{size:.2f}', f'{used:.2f}', f'{available:.2f}', f'{percent:.2f}')
         panels.append(
             Panel(table, title="[bold cyan]Disk Usage[/bold cyan]", border_style="cyan")
         )
