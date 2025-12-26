@@ -137,11 +137,23 @@ def get_disk() -> tuple[float, float, float, float]:
     """
 
     size_query = '''
-        node_filesystem_size_bytes{fstype!~'tmpfs|overlay|squashfs'}
+        sum(
+            max by (device) (
+                node_filesystem_size_bytes{
+                fstype!~"tmpfs|overlay|squashfs"
+                }
+            )
+        )
     '''
 
     avail_query = '''
-        node_filesystem_avail_bytes{fstype!~'tmpfs|overlay|squashfs'}
+        sum(
+            max by (device) (
+                node_filesystem_avail_bytes{
+                fstype!~"tmpfs|overlay|squashfs"
+                }
+            )
+        )
     '''
     
     size_res = query_prometheus_metrics(size_query)
@@ -300,11 +312,11 @@ def monitor(
     if disk:
         size, used, available, percent = get_disk()
         table = create_table("")
-        table.add_column("Size", justify="center")
-        table.add_column("Used", justify="center")
-        table.add_column("Available", justify="center")
+        table.add_column("Size (GB)", justify="center")
+        table.add_column("Used (GB)", justify="center")
+        table.add_column("Available (GB)", justify="center")
         table.add_column("Usage %", justify="center")
-        table.add_row(f'{size:.2f}', f'{used:.2f}', f'{available:.2f}', f'{percent:.2f}')
+        table.add_row(f'{round(size)}', f'{round(used)}', f'{round(available)}', f'{percent:.2f}')
         panels.append(
             Panel(table, title="[bold cyan]Disk Usage[/bold cyan]", border_style="cyan")
         )

@@ -9,6 +9,7 @@ services:
       - node-exporter
       - cadvisor
     tty: true
+    container_name: surge
   
   prometheus:
     image: prom/prometheus:latest
@@ -21,12 +22,14 @@ services:
     depends_on:
       - node-exporter
       - cadvisor
+    container_name: prometheus
   
   node-exporter:
     image: prom/node-exporter:latest
     ports:
       - "9100:9100"
     restart: unless-stopped
+    container_name: node-exporter
   
   cadvisor:
     image: gcr.io/cadvisor/cadvisor:latest
@@ -38,6 +41,7 @@ services:
       - /sys:/sys:ro
       - /var/lib/docker/:/var/lib/docker:ro
     restart: unless-stopped
+    container_name: cadvisor
 
 volumes:
   prometheus_data:
