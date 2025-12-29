@@ -99,7 +99,11 @@ def get_cpu() -> tuple[float, float, float]:
     """
     results = query_prometheus_metrics(query)
 
-    cpu = {'user': 0.0, 'system': 0.0, 'idle': 0.0}
+    cpu = {
+        'user': 0.0,
+        'system': 0.0,
+        'idle': 0.0,
+    }
 
     for item in results:
         mode = item['metric'].get('mode')
@@ -175,6 +179,27 @@ def get_top_processes(n: int = 5):
     return top_cpu, top_mem
 
 
+# Currently facing issues with Windows (+Maybe Mac?) Docker Desktop
+def get_top_containers(n: int = 5):
+    cpu_query = f"""
+        topk(
+            {n},
+            sum by (container) (
+                rate(container_cpu_usage_seconds_total{{container!="",container!="POD"}}[5m])
+            )
+        )
+    """
+    results = query_prometheus_metrics(cpu_query)
+
+    containers = []
+    for item in results:
+        name = item['metric'].get('container', 'unknown')
+        cpu = float(item['value'][1])
+        containers.append((name, cpu))
+
+    return containers
+
+
 def create_table(title: str, title_style: str = 'bold cyan', header_style: str = 'bold cyan') -> Table:
     return Table(
         title=title,
@@ -196,6 +221,7 @@ def monitor(
     ram: Annotated[bool, typer.Option('-r', '--ram', help='Show RAM usage')] = True,
     disk: Annotated[bool, typer.Option('-d', '--disk', help='Show Disk usage')] = True,
     process: Annotated[int, typer.Option('-p', '--ps', '--process', help='Show the top n processes by CPU and RAM')] = 5,
+    containers: Annotated[bool, typer.Option('-o', '--cont', '--containers', help='Show top n containers by CPU')] = 5,
     verbose: Annotated[bool, typer.Option('-v', '--verbose', help='Show detailed system metrics')] = False,
 ):
     """
@@ -307,6 +333,25 @@ def monitor(
             Panel(
                 table,
                 title=f'[bold yellow]Top {process} Processes by CPU[/bold yellow]',
+                border_style='yellow',
+            )
+        )
+
+    if containers:
+        top_containers = get_top_containers(process)
+
+        table = create_table('')
+        table.add_column('Container', justify='center')
+        table.add_column('CPU (%)', justify='center')
+
+        for name, cpu in top_containers:
+            cname = name[:27] + '...' if len(name) > 30 else name
+            table.add_row(cname, f'{cpu:.2f}')
+
+        panels.append(
+            Panel(
+                table,
+                title=f'[bold yellow]Top {containers} Containers by CPU[/bold yellow]',
                 border_style='yellow',
             )
         )
