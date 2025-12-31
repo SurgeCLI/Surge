@@ -200,6 +200,25 @@ def get_top_containers(n: int = 5):
     return containers
 
 
+def get_network_metrics() -> dict:
+    """
+    Fetches aggregate SRE network metrics from Prometheus
+    """
+    queries = {
+        'receive_rate': 'sum(rate(node_network_receive_bytes_total[5m])) / 1024 / 1024',
+        'transmit_rate': 'sum(rate(node_network_transmit_bytes_total[5m])) / 1024 / 1024',
+        'tcp_retrans': 'sum(rate(node_netstat_Tcp_RetransSegs[5m]))',
+        'drops': 'sum(rate(node_network_receive_drop_total[5m]))',
+        'tcp_est': 'sum(node_netstat_Tcp_CurrEstab)',
+    }
+
+    results = {}
+    for key, q in queries.items():
+        res = query_prometheus_metrics(q)
+        results[key] = float(res[0]['value'][1]) if res else 0.0
+    return results
+
+
 def create_table(title: str, title_style: str = 'bold cyan', header_style: str = 'bold cyan') -> Table:
     return Table(
         title=title,
@@ -222,6 +241,7 @@ def monitor(
     disk: Annotated[bool, typer.Option('-d', '--disk', help='Show Disk usage')] = True,
     process: Annotated[int, typer.Option('-p', '--ps', '--process', help='Show the top n processes by CPU and RAM')] = 5,
     containers: Annotated[bool, typer.Option('-o', '--cont', '--containers', help='Show top n containers by CPU')] = 5,
+    network: Annotated[bool, typer.Option('-n', '--net', '--network', help='Show useful network observability commands')] = True,
     verbose: Annotated[bool, typer.Option('-v', '--verbose', help='Show detailed system metrics')] = False,
 ):
     """
@@ -356,119 +376,37 @@ def monitor(
             )
         )
 
+        if network:
+            data = get_network_metrics()
+            table = create_table('')
+            table.add_column('Network View', style='cyan', justify='center')
+            table.add_column('Value', justify='center')
+            table.add_column('Health', justify='center')
+
+            retrans_status = '[green]OK[/green]' if data['tcp_retrans'] < 2 else '[bold red]WARN[/bold red]'
+            drop_status = '[green]OK[/green]' if data['drops'] == 0 else f'[bold yellow]DROP ({data["drops"]:.2f})[/bold yellow]'
+
+            MAX_MB_S = 125.0
+            current_io = data['receive_rate'] + data['transmit_rate']
+            utilization = (current_io / MAX_MB_S) * 100
+
+            if utilization > 85:
+                throughput_health = '[bold red]OVERLOAD[/bold red]'
+            elif utilization > 60:
+                throughput_health = '[bold yellow]HIGH LOAD[/bold yellow]'
+            else:
+                throughput_health = '[green]OK[/green]'
+
+            table.add_row('Throughput (MB/s)', f'RX: {data["receive_rate"]:.2f} / TX: {data["transmit_rate"]:.2f}', throughput_health)
+            table.add_row('TCP Retransmissions', f'{data["tcp_retrans"]:.2f}/s', retrans_status)
+            table.add_row('Packet Drops', f'{data["drops"]:.2f}/s', drop_status)
+            table.add_row('Est. Connections', f'{int(data["tcp_est"])}', '[green]OK[/green]')
+
+            panels.append(Panel(table, title='[bold cyan]Network Observability[/bold cyan]', border_style='cyan'))
+
     columns = Columns(panels)
     dashboard = Panel(columns, title='Monitoring Dashboard', border_style='bold green')
     console.print(dashboard)
-
-
-@app.command('network')
-def network(
-    url: Annotated[str | None, typer.Option('-u', '--url', help='HTTP URL to test (curl)', show_default=False)] = None,
-    host: Annotated[str | None, typer.Option('-h', '--host', help='Host/IP for ping and traceroute', show_default=False)] = None,
-    domain: Annotated[str | None, typer.Option('-d', '--domain', help='Domain for DNS lookup', show_default=False)] = None,
-    requests: Annotated[int, typer.Option('-n', '--count', help='Number of ICMP echo requests')] = 5,
-    dtype: Annotated[str, typer.Option('-t', '--type', help='DNS record type (A, AAAA, MX, TXT, etc.)')] = 'A',
-    sockets: Annotated[bool, typer.Option('--sockets', help='Show socket information (ss)')] = False,
-    no_trace: Annotated[bool, typer.Option('--no-trace', help='Skip traceroute/mtr when --host is set')] = False,
-):
-    """
-    Flexible network diagnostics: run only what you request.
-    Provide one or more of: --host, --url, --domain, --sockets.
-    """
-
-    def header(title: str):
-        print(f'\n[bold]{title}[/bold]')
-        print('-' * len(title))
-
-    def warn(msg: str):
-        print(f'[warn] {msg}')
-
-    def normalize_url(u: str) -> str:
-        return u if u.startswith(('http://', 'https://')) else f'http://{u}'
-
-    def curl_brief(u: str) -> str:
-        fmt = 'HTTP %{http_code} | total %{time_total}s | connect %{time_connect}s | ttfb %{time_starttransfer}s\n'
-        return run_cmd(f'curl -s -o /dev/null -w "{fmt}" {u}')
-
-    def summarize_ping(out: str) -> str:
-        lines = out.splitlines()
-        sent = loss = avg = None
-        for ln in lines:
-            if 'packets transmitted' in ln and 'packet loss' in ln:
-                parts = ln.replace(',', '').split()
-                try:
-                    sent = int(parts[0])
-                    loss = parts[6]
-                except Exception:
-                    pass
-            if 'rtt min/avg/max' in ln or 'round-trip min/avg/max' in ln:
-                try:
-                    avg = ln.split('=')[1].split('/')[1].strip()
-                except Exception:
-                    pass
-        bits = []
-
-        if sent is not None:
-            bits.append(f'sent={sent}')
-        if loss is not None:
-            bits.append(f'loss={loss}')
-        if avg is not None:
-            bits.append(f'avg_rtt_ms={avg}')
-
-        return ' | '.join(bits) if bits else (out.strip()[:200] if out else '')
-
-    def summarize_trace(out: str, max_lines: int = 12) -> str:
-        lines = [line for line in out.splitlines() if line.strip()]
-        if len(lines) <= max_lines:
-            return out
-        return '\n'.join(lines[:6] + ['...'] + lines[-6:])
-
-    # --- validate empty values FIRST ---
-    if host is not None and not str(host).strip():
-        warn('--host was provided but empty')
-        raise typer.Exit(code=2)
-    if url is not None and not str(url).strip():
-        warn('--url was provided but empty')
-        raise typer.Exit(code=2)
-    if domain is not None and not str(domain).strip():
-        warn('--domain was provided but empty')
-        raise typer.Exit(code=2)
-
-    # --- then require at least one section ---
-    if not any([host, url, domain, sockets]):
-        warn('Nothing to do. Provide at least one of: --host, --url, --domain, --sockets')
-        raise typer.Exit(code=1)
-
-    # ---- ping / traceroute (or mtr -r fallback) ----
-    if host:
-        header('Ping')
-        ping_out = run_cmd(f'ping -c {requests} {host}')
-        print(summarize_ping(ping_out) if ping_out else '[warn] ping not available or produced no output')
-
-        if not no_trace:
-            header('Traceroute')
-            trace_out = run_cmd(f'traceroute {host}') or run_cmd(f'mtr -r {host}')
-            print(summarize_trace(trace_out) if trace_out else '[warn] traceroute/mtr not available or produced no output')
-
-    # ---- http (curl) ----
-    if url:
-        header('HTTP (curl)')
-        u = normalize_url(url)
-        print(curl_brief(u))
-        headers = run_cmd(f'curl -s -I {u}')
-        print(headers.strip() if headers else '[warn] curl not available or produced no output')
-
-    # ---- dns ----
-    if domain:
-        header('DNS')
-        dns_out = run_cmd(f'dig +short {domain} {dtype}') or run_cmd(f'nslookup -type={dtype} {domain}')
-        print(dns_out.strip() if dns_out else '[warn] dig/nslookup not available or produced no output')
-
-    # ---- sockets (ss) ----
-    if sockets:
-        header('Sockets (ss)')
-        ss_out = run_cmd('ss -tulwn')
-        print(ss_out or '[warn] ss not available or produced no output')
 
 
 @app.command()
