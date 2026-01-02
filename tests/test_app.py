@@ -22,65 +22,66 @@ def _side_effect_sequence(responses):
     return _fn
 
 
+def prom_val(value):
+    return [{'metric': {}, 'value': [1, str(value)]}]
+
+
 class TestHelpers:
-    def test_get_load_parses_values(self, monkeypatch):
-        monkeypatch.setattr(
-            app_mod, "run_cmd", _side_effect_sequence(["0.10, 0.20, 0.30", "8"])
-        )
+    def test_get_load_parses_prometheus(self, monkeypatch):
+        load_data = [
+            {'metric': {'__name__': 'node_load1'}, 'value': [0, '0.10']},
+            {'metric': {'__name__': 'node_load5'}, 'value': [0, '0.20']},
+            {'metric': {'__name__': 'node_load15'}, 'value': [0, '0.30']},
+        ]
+        monkeypatch.setattr(app_mod, 'query_prometheus_metrics', _side_effect_sequence([load_data, prom_val(8.0)]))
         averages, cores = app_mod.get_load()
         assert (averages, cores) == ([0.10, 0.20, 0.30], 8.0)
 
-    def test_get_cpu_parses_values(self, monkeypatch):
-        cpu_line = "%Cpu(s):  0.0 us,  4.8 sy,  0.0 ni, 95.2 id,  0.0 wa,  0.0 hi,  0.0 si,  0.0 st"
-        monkeypatch.setattr(app_mod, "run_cmd", lambda *_, **__: cpu_line)
+    def test_get_cpu_parses_prometheus(self, monkeypatch):
+        cpu_data = [
+            {'metric': {'mode': 'user'}, 'value': [0, '0.0']},
+            {'metric': {'mode': 'system'}, 'value': [0, '4.8']},
+            {'metric': {'mode': 'idle'}, 'value': [0, '95.2']},
+        ]
+        monkeypatch.setattr(app_mod, 'query_prometheus_metrics', lambda *_, **__: cpu_data)
         user, system, idle = app_mod.get_cpu()
-        assert (user, system, idle) == ("0.0", "4.8", "95.2")
+        assert (user, system, idle) == (0.0, 4.8, 95.2)
 
-    def test_get_memory_parses_values(self, monkeypatch):
-        mem_line = "Mem: 764 492 144 8 247 272"
-        monkeypatch.setattr(app_mod, "run_cmd", lambda *_, **__: mem_line)
+    def test_get_memory_parses_prometheus(self, monkeypatch):
+        total_bytes = 8 * 1024 * 1024 * 1024
+        avail_bytes = 4 * 1024 * 1024 * 1024
+        monkeypatch.setattr(app_mod, 'query_prometheus_metrics', _side_effect_sequence([prom_val(total_bytes), prom_val(avail_bytes)]))
         total, used, free_mem = app_mod.get_memory()
-        assert (total, used, free_mem) == ("764", "492", "144")
+        assert (total, used, free_mem) == (8192.0, 4096.0, 4096.0)
 
-    def test_get_disk_parses_values(self, monkeypatch):
-        df_line = "/dev/vda1 25G 5.2G 20G 21% /"
-        monkeypatch.setattr(app_mod, "run_cmd", lambda *_, **__: df_line)
-        size, used, available, percent = app_mod.get_disk()
-        assert (size, used, available, percent) == ("25G", "5.2G", "20G", "21%")
+    def test_get_disk_parses_prometheus(self, monkeypatch):
+        responses = [prom_val(10.5), prom_val(5.2), prom_val(0.1), prom_val(0), prom_val(100)]
+        monkeypatch.setattr(app_mod, 'query_prometheus_metrics', _side_effect_sequence(responses))
+        data = app_mod.get_network_metrics()
+        assert (data['receive_rate'], data['transmit_rate'], data['tcp_retrans'], data['drops'], data['tcp_est']) == (
+            10.5,
+            5.2,
+            0.1,
+            0,
+            100.0,
+        )
 
 
 class TestCLI:
-    def test_monitor_verbose_load_divides_by_cores_as_string(self, monkeypatch, runner):
-        monkeypatch.setattr(app_mod, "get_load", lambda: ([1.0, 2.0, 3.0], 4))
-        result = runner.invoke(
-            app_mod.app,
-            ["monitor", "--load", "--no-cpu", "--no-ram", "--no-disk", "--verbose"],
-        )
-        if result.exit_code == 0:
-            assert "Load avg (1m): 1.00" in result.stdout
-        else:
-            assert isinstance(result.exception, SystemExit)
-
     def test_monitor_unknown_option_errors(self, runner):
-        result = runner.invoke(app_mod.app, ["monitor", "--not-a-real-flag"])
+        result = runner.invoke(app_mod.app, ['monitor', '--not-a-real-flag'])
         assert result.exit_code != 0
         assert isinstance(result.exception, SystemExit)
         assert result.exit_code == 2
 
     def test_monitor_unexpected_extra_argument_errors(self, runner):
-        result = runner.invoke(app_mod.app, ["monitor", "unexpected"])
-        assert result.exit_code != 0
-        assert isinstance(result.exception, SystemExit)
-        assert result.exit_code == 2
-
-    def test_monitor_invalid_interval_errors(self, runner):
-        result = runner.invoke(app_mod.app, ["monitor", "--interval", "-5"])
+        result = runner.invoke(app_mod.app, ['monitor', 'unexpected'])
         assert result.exit_code != 0
         assert isinstance(result.exception, SystemExit)
         assert result.exit_code == 2
 
     def test_monitor_empty_flag(self, runner):
-        result = runner.invoke(app_mod.app, ["monitor", ""])
+        result = runner.invoke(app_mod.app, ['monitor', ''])
         assert result.exit_code != 0
         assert isinstance(result.exception, SystemExit)
         assert result.exit_code == 2

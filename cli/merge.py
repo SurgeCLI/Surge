@@ -24,11 +24,7 @@ def merge(section: str | None = None):
 
     def decorator(func):
         orig_sig = inspect.signature(func)
-        declared_defaults = {
-            name: param.default
-            for name, param in orig_sig.parameters.items()
-            if param.default is not inspect._empty
-        }
+        declared_defaults = {name: param.default for name, param in orig_sig.parameters.items() if param.default is not inspect._empty}
 
         # Modded signature with defaults set to None for Typer to see as optional; leaves *args, **kwargs, and positional-only params default
         new_params = []
@@ -46,14 +42,10 @@ def merge(section: str | None = None):
         # Actual wrapper lets go
         @wraps(func)
         def wrapper(*args, **kwargs):
-            config_data = func.__globals__.get("config_data", {})
+            config_data = func.__globals__.get('config_data', {})
 
             section_key = section or func.__name__
-            config_section = (
-                config_data.get(section_key, {})
-                if isinstance(config_data, dict)
-                else {}
-            )
+            config_section = config_data.get(section_key, {}) if isinstance(config_data, dict) else {}
 
             bound = orig_sig.bind_partial(*args, **kwargs)
             final_args = {}

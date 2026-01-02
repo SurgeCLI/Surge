@@ -1,0 +1,14 @@
+langchain==0.2.16
+langchain-community==0.2.16
+langchain-google-genai==1.0.10
+langchain-core==0.2.43
+rich
+typer[all]
+python-dotenv
+requests
+httpx
+SQLAlchemy
+tomli_w
+pytest
+pytest-ruff
+ruff
