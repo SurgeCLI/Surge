@@ -429,7 +429,8 @@ def ai(
         from ai.ai_monitor import run_ai_monitor  # noqa: E402
 
         run_ai_monitor(data_format=format, verbosity=verbosity, auto_fix=auto_fix)
-    except ImportError:
+    except ImportError as e:
+        print(f'[red]Import Error: {e}[/red]')
         print('[red]AI packages not installed[/red]')
         print('Run: pip install langchain langchain-google-genai rich')
     except Exception as err:

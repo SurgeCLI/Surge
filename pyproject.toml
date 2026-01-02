@@ -8,4 +8,4 @@ requires-python = ">=3.11"
 surge = "cli.app:app"
 
 [tool.setuptools.packages.find]
-include = ["cli", "cli.*", "config", "config.*"]
+include = ["cli", "cli.*", "ai", "ai.*", "config", "config.*"]

@@ -23,18 +23,15 @@ def _side_effect_sequence(responses):
 
 
 def prom_val(value):
-    return [{
-        'metric': {},
-        'value': [1, str(value)]
-    }]
+    return [{'metric': {}, 'value': [1, str(value)]}]
 
 
 class TestHelpers:
     def test_get_load_parses_prometheus(self, monkeypatch):
         load_data = [
-            {"metric": {"__name__": "node_load1"}, "value": [0, "0.10"]},
-            {"metric": {"__name__": "node_load5"}, "value": [0, "0.20"]},
-            {"metric": {"__name__": "node_load15"}, "value": [0, "0.30"]},
+            {'metric': {'__name__': 'node_load1'}, 'value': [0, '0.10']},
+            {'metric': {'__name__': 'node_load5'}, 'value': [0, '0.20']},
+            {'metric': {'__name__': 'node_load15'}, 'value': [0, '0.30']},
         ]
         monkeypatch.setattr(app_mod, 'query_prometheus_metrics', _side_effect_sequence([load_data, prom_val(8.0)]))
         averages, cores = app_mod.get_load()
@@ -42,9 +39,9 @@ class TestHelpers:
 
     def test_get_cpu_parses_prometheus(self, monkeypatch):
         cpu_data = [
-            {"metric": {"mode": "user"}, "value": [0, "0.0"]},
-            {"metric": {"mode": "system"}, "value": [0, "4.8"]},
-            {"metric": {"mode": "idle"}, "value": [0, "95.2"]},
+            {'metric': {'mode': 'user'}, 'value': [0, '0.0']},
+            {'metric': {'mode': 'system'}, 'value': [0, '4.8']},
+            {'metric': {'mode': 'idle'}, 'value': [0, '95.2']},
         ]
         monkeypatch.setattr(app_mod, 'query_prometheus_metrics', lambda *_, **__: cpu_data)
         user, system, idle = app_mod.get_cpu()
@@ -61,7 +58,13 @@ class TestHelpers:
         responses = [prom_val(10.5), prom_val(5.2), prom_val(0.1), prom_val(0), prom_val(100)]
         monkeypatch.setattr(app_mod, 'query_prometheus_metrics', _side_effect_sequence(responses))
         data = app_mod.get_network_metrics()
-        assert (data['receive_rate'], data['transmit_rate'], data['tcp_retrans'], data['drops'], data['tcp_est']) == (10.5, 5.2, 0.1, 0, 100.0)
+        assert (data['receive_rate'], data['transmit_rate'], data['tcp_retrans'], data['drops'], data['tcp_est']) == (
+            10.5,
+            5.2,
+            0.1,
+            0,
+            100.0,
+        )
 
 
 class TestCLI:
