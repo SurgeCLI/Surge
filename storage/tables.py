@@ -10,6 +10,7 @@ system_metrics = Table(
     Column('timestamp', Integer, nullable=False, index=True),
     Column('cpu_util', Float, nullable=False),
     Column('mem_util', Float, nullable=False),
+    Column('mem_velocity', Float, nullable=False),
     Column('disk_util', Float, nullable=False),
     Column('incident_id', Integer, ForeignKey('incidents.id'), nullable=True),
 )
@@ -22,6 +23,7 @@ incidents = Table(
     Column('end_timestamp', Integer),
     Column('summary', Text),
     Column('resolution', Text),
+    Column('severity', Text),
     Column('success', Boolean, default=False),
     Column('vector_id', Text),
 )
