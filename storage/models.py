@@ -10,4 +10,12 @@ class SystemSnapshot:
     load_1m: float
     load_5m: float
     load_15m: float
-    ...  # More useful PromQL metrics from app.py
+    ...
+    raw_uptime: str = None
+    raw_free: str = None
+    raw_df: str = None
+
+    def to_dict(self):
+        return {
+            
+        }

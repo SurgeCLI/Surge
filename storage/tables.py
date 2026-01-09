@@ -1,7 +1,8 @@
-from sqlalchemy import create_engine, Table, Column, Integer, Float, Text, Boolean, MetaData, ForeignKey, Index
+from sqlalchemy import Table, Column, Integer, Float, Text, Boolean, MetaData, ForeignKey, Index
+from sqlalchemy import create_engine
 
-engine = create_engine('sqlite:///app.db', future=True)
 metadata = MetaData()
+engine = create_engine('sqlite:///app.db', future=True)
 
 system_metrics = Table(
     'system_metrics',

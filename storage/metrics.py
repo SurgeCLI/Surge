@@ -1,9 +1,12 @@
-from app import get_load, get_cpu, get_memory, get_disk
-from models import MetricSnapshot
+from cli.app import get_load, get_cpu, get_memory, get_disk
+from models import SystemSnapshot
 from time import time
 
 
-def collect_system_snapshot() -> MetricSnapshot:
+def collect_system_snapshot() -> SystemSnapshot:
+    """
+    Query Prometheus helpers and return the SystemSnapshot defined in Models
+    """
     load, _ = get_load()
     _, _, idle = get_cpu()
     total, used, _ = get_memory()
@@ -12,7 +15,7 @@ def collect_system_snapshot() -> MetricSnapshot:
     cpu_util = 100.0 - idle
     mem_util = (used / total * 100) if total else 0.0
 
-    return MetricSnapshot(
+    return SystemSnapshot(
         timestamp=int(time()),
         cpu_util=cpu_util,
         mem_util=mem_util,
@@ -23,7 +26,7 @@ def collect_system_snapshot() -> MetricSnapshot:
     )
 
 
-def calculate_mem_velocity(current: MetricSnapshot, prev: MetricSnapshot) -> float:
+def calculate_mem_velocity(current: SystemSnapshot, prev: SystemSnapshot) -> float:
     d_mem = current.mem_util - prev.mem_util
     d_t = current.timestamp - prev.timestamp
 
