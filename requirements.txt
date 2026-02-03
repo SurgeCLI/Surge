@@ -2,6 +2,7 @@ langchain==0.2.16
 langchain-community==0.2.16
 langchain-google-genai==1.0.10
 langchain-core==0.2.43
+chromadb
 rich
 typer[all]
 python-dotenv
